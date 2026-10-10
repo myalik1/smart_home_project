@@ -1,14 +1,29 @@
 #include "../include/SmartLamp.h"
 #include "../include/json.hpp"
-#include <iostream>
 
 using json = nlohmann::json;
 
-SmartLamp::SmartLamp(std::string name, std::string serial, std::string type) {
+SmartLamp::SmartLamp(std::string name, std::string serial, std::string type, std::string topic) {
     deviceName = name;
     serialNumber = serial;
     deviceType = type;
+    mqttTopic = topic;
     isOn = false;
+    brightness = 100;
+}
+
+void SmartLamp::publishState() {
+
+    if (sender == nullptr) return;
+
+    json data;
+    data["deviceName"] = deviceName;
+    data["serialNumber"] = serialNumber;
+    data["deviceType"] = deviceType;
+    data["isOn"] = isOn;
+    data["brightness"] = brightness;
+
+    sender->sendMessage(mqttTopic, data.dump());
 }
 
 void SmartLamp::onMessageReceived(const std::string& message) {
@@ -17,14 +32,13 @@ void SmartLamp::onMessageReceived(const std::string& message) {
 
     if (command == "ON") {
         isOn = true;
-        std::cout << "Lamp " << deviceName << " is ON (Brightness: " << brightness << "%)\n";
     }
     else if (command == "OFF") {
         isOn = false;
-        std::cout << "Lamp " << deviceName << " is OFF\n";
     }
     else if (command == "SET_BRIGHTNESS") {
         brightness = incomingData["value"];
-        std::cout << "Lamp " << deviceName << " changed brightness to " << brightness << "%\n";
     }
+
+    publishState();
 }
