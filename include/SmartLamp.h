@@ -1,6 +1,7 @@
 #pragma once
 #include "SmartDevice.h"
 #include <string>
+#include <mutex>
 
 // Concrete implementation of a smart lamp device
 class SmartLamp : public SmartDevice {
@@ -20,4 +21,7 @@ private:
 
     // Current brightness level (0-100)
     int brightness;
+
+    // Mutex to protect state variables from concurrent access
+    std::mutex stateMutex;
 };
