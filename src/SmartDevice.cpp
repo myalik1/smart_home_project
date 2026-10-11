@@ -14,6 +14,8 @@ void SmartDevice::publishState() {
     std::cout << "Publishing: " << payload << '\n';
 }
 
-void SmartDevice::connectToNetwork() {
-    std::cout << "Connecting " << deviceName << " to MQTT broker...\n";
+#include "../include/SmartDevice.h"
+
+void SmartDevice::setSender(IMessageSender* s) {
+    sender = s;
 }
