@@ -8,21 +8,24 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(PahoMqttCpp REQUIRED)
 
 include_directories(include)
-<<<<<<< HEAD
 
+# Основное приложение
 add_executable(SmartHomeApp
     main.cpp
     src/SmartDevice.cpp
     src/SmartLamp.cpp
+    src/SmartThermostat.cpp
+    src/SmartPlug.cpp
+    src/SmartHygrometer.cpp
+    src/SmartRadiator.cpp
 )
-
 target_link_libraries(SmartHomeApp PRIVATE paho-mqttpp3 paho-mqtt3as)
 
+# Временный тест MQTT (можно удалить позже)
 add_executable(mqtt_test mqtt_test.cpp)
 target_link_libraries(mqtt_test PRIVATE paho-mqttpp3 paho-mqtt3as)
-=======
-add_executable(SmartHomeApp main.cpp src/SmartDevice.cpp src/SmartLamp.cpp src/SmartThermostat.cpp src/SmartPlug.cpp src/SmartHygrometer.cpp src/SmartRadiator.cpp)
 
+# Тесты (от коллег из feature/smart-device)
 enable_testing()
 
 include(FetchContent)
@@ -53,4 +56,3 @@ target_link_libraries(smart_home_tests gtest_main)
 
 include(GoogleTest)
 gtest_discover_tests(smart_home_tests)
->>>>>>> origin/feature/smart-device
