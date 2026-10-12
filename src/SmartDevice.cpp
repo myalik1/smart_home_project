@@ -14,8 +14,6 @@ void SmartDevice::publishState() {
     std::cout << "Publishing: " << payload << '\n';
 }
 
-#include "../include/SmartDevice.h"
-
 void SmartDevice::setSender(IMessageSender* s) {
     sender = s;
 }

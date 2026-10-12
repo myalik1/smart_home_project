@@ -43,18 +43,22 @@ void SmartLamp::onMessageReceived(const std::string& message) {
         {
             std::lock_guard<std::mutex> lock(stateMutex);
 
-            if (command == "ON") {
+            if (command == "ON" && !isOn) {
                 isOn = true;
                 stateChanged = true;
             }
-            else if (command == "OFF") {
+            else if (command == "OFF" && isOn) {
                 isOn = false;
                 stateChanged = true;
             }
             else if (command == "SET_BRIGHTNESS" && incomingData.contains("value")) {
                 int newVal = incomingData["value"];
-                brightness = std::clamp(newVal, 0, 100);
-                stateChanged = true;
+                int clampedVal = std::clamp(newVal, 0, 100);
+
+                if (brightness != clampedVal) {
+                    brightness = clampedVal;
+                    stateChanged = true;
+                }
             }
         }
 
