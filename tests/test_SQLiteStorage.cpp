@@ -24,7 +24,6 @@ protected:
     }
 };
 
-// ─── Соединение ─────────────────────────────────────────────────────────────
 
 TEST_F(SQLiteStorageTest, OpenAndClose) {
     EXPECT_TRUE(storage.isOpen());
@@ -34,12 +33,10 @@ TEST_F(SQLiteStorageTest, OpenAndClose) {
 
 TEST_F(SQLiteStorageTest, OpenInvalidPath) {
     SQLiteStorage bad;
-    // Попытка открыть БД по невалидному пути
     EXPECT_FALSE(bad.open("/nonexistent/dir/test.db"));
     EXPECT_FALSE(bad.isOpen());
 }
 
-// ─── CREATE + INSERT ────────────────────────────────────────────────────────
 
 TEST_F(SQLiteStorageTest, CreateTableAndInsert) {
     EXPECT_TRUE(storage.execute(
@@ -62,7 +59,6 @@ TEST_F(SQLiteStorageTest, CreateTableAndInsert) {
     ));
 }
 
-// ─── SELECT ─────────────────────────────────────────────────────────────────
 
 TEST_F(SQLiteStorageTest, QueryAll) {
     storage.execute(
@@ -89,7 +85,6 @@ TEST_F(SQLiteStorageTest, ParameterizedQuery) {
     EXPECT_EQ(rows[0]["name"], "Lamp1");
 }
 
-// ─── UPDATE + DELETE ────────────────────────────────────────────────────────
 
 TEST_F(SQLiteStorageTest, UpdateAndDelete) {
     storage.execute("CREATE TABLE devices (id INTEGER PRIMARY KEY, name TEXT, status TEXT);");
@@ -106,7 +101,6 @@ TEST_F(SQLiteStorageTest, UpdateAndDelete) {
     EXPECT_TRUE(rows.empty());
 }
 
-// ─── Транзакции ─────────────────────────────────────────────────────────────
 
 TEST_F(SQLiteStorageTest, TransactionCommit) {
     storage.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, val TEXT);");
@@ -133,7 +127,6 @@ TEST_F(SQLiteStorageTest, TransactionRollback) {
     EXPECT_EQ(rows[0]["val"], "keeper");
 }
 
-// ─── Move-семантика ─────────────────────────────────────────────────────────
 
 TEST_F(SQLiteStorageTest, MoveConstructor) {
     SQLiteStorage moved = std::move(storage);
@@ -145,7 +138,6 @@ TEST_F(SQLiteStorageTest, MoveConstructor) {
     EXPECT_EQ(rows[0]["val"], "1");
 }
 
-// ─── Ошибки ─────────────────────────────────────────────────────────────────
 
 TEST_F(SQLiteStorageTest, ExecuteWithoutOpen) {
     SQLiteStorage closed;
@@ -156,3 +148,4 @@ TEST_F(SQLiteStorageTest, InvalidSQL) {
     EXPECT_FALSE(storage.execute("INVALID SQL;"));
     EXPECT_FALSE(storage.getLastError().empty());
 }
+

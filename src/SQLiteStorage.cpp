@@ -2,7 +2,6 @@
 
 #include <stdexcept>
 
-// ─── Конструкторы / деструктор ───────────────────────────────────────────────
 
 SQLiteStorage::SQLiteStorage() : db_(nullptr) {}
 
@@ -25,7 +24,6 @@ SQLiteStorage& SQLiteStorage::operator=(SQLiteStorage&& other) noexcept {
     return *this;
 }
 
-// ─── Управление соединением ──────────────────────────────────────────────────
 
 bool SQLiteStorage::open(const std::string& connectionString) {
     if (db_) {
@@ -59,7 +57,6 @@ bool SQLiteStorage::isOpen() const {
     return db_ != nullptr;
 }
 
-// ─── Выполнение запросов ─────────────────────────────────────────────────────
 
 bool SQLiteStorage::execute(const std::string& sql) {
     if (!db_) {
@@ -113,8 +110,6 @@ IStorage::QueryResult SQLiteStorage::query(const std::string& sql,
     return result;
 }
 
-// ─── Транзакции ──────────────────────────────────────────────────────────────
-
 bool SQLiteStorage::beginTransaction() {
     return execute("BEGIN TRANSACTION;");
 }
@@ -127,7 +122,6 @@ bool SQLiteStorage::rollbackTransaction() {
     return execute("ROLLBACK;");
 }
 
-// ─── Вспомогательные методы ──────────────────────────────────────────────────
 
 std::string SQLiteStorage::getLastError() const {
     return lastError_;
@@ -148,7 +142,6 @@ sqlite3_stmt* SQLiteStorage::prepareStatement(const std::string& sql,
         return nullptr;
     }
 
-    // Привязываем параметры (индексация с 1)
     for (size_t i = 0; i < params.size(); ++i) {
         rc = sqlite3_bind_text(stmt,
                                static_cast<int>(i + 1),
@@ -191,3 +184,4 @@ void SQLiteStorage::setLastError(const std::string& context) {
         lastError_ = context + ": database handle is null";
     }
 }
+

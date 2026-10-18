@@ -88,3 +88,4 @@ public:
      */
     virtual bool rollbackTransaction() = 0;
 };
+

@@ -57,3 +57,4 @@ private:
     QueryResult extractRows(sqlite3_stmt* stmt);
     void setLastError(const std::string& context);
 };
+
