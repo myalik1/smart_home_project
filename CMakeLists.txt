@@ -10,7 +10,6 @@ find_package(SQLite3 REQUIRED)
 
 include_directories(include)
 
-# Основное приложение
 add_executable(SmartHomeApp
     main.cpp
     src/SmartDevice.cpp
@@ -24,11 +23,9 @@ add_executable(SmartHomeApp
 )
 target_link_libraries(SmartHomeApp PRIVATE paho-mqttpp3 paho-mqtt3as SQLite::SQLite3)
 
-# Временный тест MQTT (можно удалить позже)
 add_executable(mqtt_test mqtt_test.cpp)
 target_link_libraries(mqtt_test PRIVATE paho-mqttpp3 paho-mqtt3as)
 
-# Тесты (от коллег из feature/smart-device)
 enable_testing()
 
 include(FetchContent)
