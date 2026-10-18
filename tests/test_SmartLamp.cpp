@@ -29,6 +29,8 @@ TEST_F(SmartLampTest, TurnsOnAndSendsStatus) {
 }
 
 TEST_F(SmartLampTest, ClampsBrightness) {
+    lamp->onMessageReceived(R"({"command": "SET_BRIGHTNESS", "value": 50})");
+
     lamp->onMessageReceived(R"({"command": "SET_BRIGHTNESS", "value": 150})");
     json resultHigh = json::parse(mockSender.lastMessage);
     EXPECT_EQ(resultHigh["brightness"], 100);

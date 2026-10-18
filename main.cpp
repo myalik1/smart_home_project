@@ -8,59 +8,32 @@
 #include "include/SmartHygrometer.h"
 #include "include/SmartRadiator.h"
 #include "include/MqttMessageSender.h"
+#include "include/DeviceManager.h"
+#include <memory>
 
 int main() {
     const std::string BROKER = "tcp://localhost:1883";
-
     const std::string CLIENT_ID = "smart_home_app";
 
     MqttMessageSender sender(BROKER, CLIENT_ID);
+    DeviceManager manager(&sender);
 
-    SmartLamp        lamp       ("Lamp1",       "LAMP-001",   "Lamp",       "home/lamp1");
-    SmartThermostat  thermostat ("Thermostat1", "THERMO-001", "Thermostat", "home/thermostat1");
-    SmartPlug        plug       ("Plug1",       "PLUG-001",   "Plug",       "home/plug1");
-    SmartHygrometer  hygrometer ("Hygrometer1", "HYGRO-001",  "Hygrometer", "home/hygrometer1");
-    SmartRadiator    radiator   ("Radiator1",   "RAD-001",    "Radiator",   "home/radiator1");
+    auto lamp       = std::make_shared<SmartLamp>("Lamp1",             "LAMP-001",   "Lamp",       "home/lamp1");
+    auto thermostat = std::make_shared<SmartThermostat>("Thermostat1", "THERMO-001", "Thermostat", "home/thermostat1");
+    auto plug       = std::make_shared<SmartPlug>("Plug1",             "PLUG-001",   "Plug",       "home/plug1");
+    auto hygrometer = std::make_shared<SmartHygrometer>("Hygrometer1", "HYGRO-001",  "Hygrometer", "home/hygrometer1");
+    auto radiator   = std::make_shared<SmartRadiator>("Radiator1",     "RAD-001",    "Radiator",   "home/radiator1");
 
-    lamp.setSender(&sender);
-    thermostat.setSender(&sender);
-    plug.setSender(&sender);
-    hygrometer.setSender(&sender);
-    radiator.setSender(&sender);
+    manager.registerDevice(lamp);
+    manager.registerDevice(thermostat);
+    manager.registerDevice(plug);
+    manager.registerDevice(hygrometer);
+    manager.registerDevice(radiator);
 
     sender.connect();
 
-    sender.subscribe("home/lamp1/set",
-        [&lamp](const std::string&, const std::string& payload) {
-            lamp.onMessageReceived(payload);
-        });
-
-    sender.subscribe("home/thermostat1/set",
-        [&thermostat](const std::string&, const std::string& payload) {
-            thermostat.onMessageReceived(payload);
-        });
-
-    sender.subscribe("home/plug1/set",
-        [&plug](const std::string&, const std::string& payload) {
-            plug.onMessageReceived(payload);
-        });
-
-    sender.subscribe("home/hygrometer1/set",
-        [&hygrometer](const std::string&, const std::string& payload) {
-            hygrometer.onMessageReceived(payload);
-        });
-
-    sender.subscribe("home/radiator1/set",
-        [&radiator](const std::string&, const std::string& payload) {
-            radiator.onMessageReceived(payload);
-        });
-
     std::cout << "\n--- Публикую начальное состояние ---\n";
-    lamp.publishState();
-    thermostat.publishState();
-    plug.publishState();
-    hygrometer.publishState();
-    radiator.publishState();
+    manager.publishAllStates();
 
     std::cout << "\nВсе устройства готовы. Примеры команд:\n";
     std::cout << "  Лампу включить:\n";

@@ -1,8 +1,3 @@
-/**
- * @file test_SQLiteStorage.cpp
- * @brief GTest-тесты для SQLiteStorage.
- */
-
 #include "../include/SQLiteStorage.h"
 
 #include <gtest/gtest.h>
@@ -24,7 +19,6 @@ protected:
     }
 };
 
-
 TEST_F(SQLiteStorageTest, OpenAndClose) {
     EXPECT_TRUE(storage.isOpen());
     storage.close();
@@ -36,7 +30,6 @@ TEST_F(SQLiteStorageTest, OpenInvalidPath) {
     EXPECT_FALSE(bad.open("/nonexistent/dir/test.db"));
     EXPECT_FALSE(bad.isOpen());
 }
-
 
 TEST_F(SQLiteStorageTest, CreateTableAndInsert) {
     EXPECT_TRUE(storage.execute(
@@ -58,7 +51,6 @@ TEST_F(SQLiteStorageTest, CreateTableAndInsert) {
         {"Radiator1", "radiator", "off"}
     ));
 }
-
 
 TEST_F(SQLiteStorageTest, QueryAll) {
     storage.execute(
@@ -85,7 +77,6 @@ TEST_F(SQLiteStorageTest, ParameterizedQuery) {
     EXPECT_EQ(rows[0]["name"], "Lamp1");
 }
 
-
 TEST_F(SQLiteStorageTest, UpdateAndDelete) {
     storage.execute("CREATE TABLE devices (id INTEGER PRIMARY KEY, name TEXT, status TEXT);");
     storage.execute("INSERT INTO devices (name, status) VALUES (?, ?);", {"Lamp1", "on"});
@@ -100,7 +91,6 @@ TEST_F(SQLiteStorageTest, UpdateAndDelete) {
     rows = storage.query("SELECT * FROM devices;");
     EXPECT_TRUE(rows.empty());
 }
-
 
 TEST_F(SQLiteStorageTest, TransactionCommit) {
     storage.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, val TEXT);");
@@ -127,7 +117,6 @@ TEST_F(SQLiteStorageTest, TransactionRollback) {
     EXPECT_EQ(rows[0]["val"], "keeper");
 }
 
-
 TEST_F(SQLiteStorageTest, MoveConstructor) {
     SQLiteStorage moved = std::move(storage);
     EXPECT_TRUE(moved.isOpen());
@@ -138,7 +127,6 @@ TEST_F(SQLiteStorageTest, MoveConstructor) {
     EXPECT_EQ(rows[0]["val"], "1");
 }
 
-
 TEST_F(SQLiteStorageTest, ExecuteWithoutOpen) {
     SQLiteStorage closed;
     EXPECT_FALSE(closed.execute("SELECT 1;"));
@@ -148,4 +136,3 @@ TEST_F(SQLiteStorageTest, InvalidSQL) {
     EXPECT_FALSE(storage.execute("INVALID SQL;"));
     EXPECT_FALSE(storage.getLastError().empty());
 }
-

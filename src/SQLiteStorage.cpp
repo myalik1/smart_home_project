@@ -1,7 +1,5 @@
 #include "../include/SQLiteStorage.h"
-
 #include <stdexcept>
-
 
 SQLiteStorage::SQLiteStorage() : db_(nullptr) {}
 
@@ -24,7 +22,6 @@ SQLiteStorage& SQLiteStorage::operator=(SQLiteStorage&& other) noexcept {
     return *this;
 }
 
-
 bool SQLiteStorage::open(const std::string& connectionString) {
     if (db_) {
         close();
@@ -38,9 +35,7 @@ bool SQLiteStorage::open(const std::string& connectionString) {
         return false;
     }
 
-    // Включаем WAL-режим для лучшей производительности при параллельных чтениях
     execute("PRAGMA journal_mode=WAL;");
-    // Включаем проверку внешних ключей
     execute("PRAGMA foreign_keys=ON;");
 
     return true;
@@ -56,7 +51,6 @@ void SQLiteStorage::close() {
 bool SQLiteStorage::isOpen() const {
     return db_ != nullptr;
 }
-
 
 bool SQLiteStorage::execute(const std::string& sql) {
     if (!db_) {
@@ -122,7 +116,6 @@ bool SQLiteStorage::rollbackTransaction() {
     return execute("ROLLBACK;");
 }
 
-
 std::string SQLiteStorage::getLastError() const {
     return lastError_;
 }
@@ -184,4 +177,3 @@ void SQLiteStorage::setLastError(const std::string& context) {
         lastError_ = context + ": database handle is null";
     }
 }
-
