@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(PahoMqttCpp REQUIRED)
+find_package(SQLite3 REQUIRED)
 
 include_directories(include)
 
@@ -19,8 +20,9 @@ add_executable(SmartHomeApp
     src/SmartHygrometer.cpp
     src/SmartRadiator.cpp
     src/MqttMessageSender.cpp
+    src/SQLiteStorage.cpp
 )
-target_link_libraries(SmartHomeApp PRIVATE paho-mqttpp3 paho-mqtt3as)
+target_link_libraries(SmartHomeApp PRIVATE paho-mqttpp3 paho-mqtt3as SQLite::SQLite3)
 
 # Временный тест MQTT (можно удалить позже)
 add_executable(mqtt_test mqtt_test.cpp)
@@ -45,15 +47,17 @@ add_executable(smart_home_tests
     tests/test_SmartPlug.cpp
     tests/test_SmartHygrometer.cpp
     tests/test_SmartRadiator.cpp
+    tests/test_SQLiteStorage.cpp
     src/SmartLamp.cpp
     src/SmartThermostat.cpp
     src/SmartPlug.cpp
     src/SmartHygrometer.cpp
     src/SmartRadiator.cpp
     src/SmartDevice.cpp
+    src/SQLiteStorage.cpp
 )
 
-target_link_libraries(smart_home_tests gtest_main)
+target_link_libraries(smart_home_tests gtest_main SQLite::SQLite3)
 
 include(GoogleTest)
 gtest_discover_tests(smart_home_tests)
