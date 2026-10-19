@@ -8,6 +8,10 @@
 #include "include/SmartHygrometer.h"
 #include "include/SmartRadiator.h"
 #include "include/MqttMessageSender.h"
+#include "include/RadiatorEmulator.h"
+#include "include/PlugEmulator.h"
+#include "include/ThermostatEmulator.h"
+#include "include/RadiatorEmulator.h"
 
 int main() {
     const std::string BROKER = "tcp://localhost:1883";
@@ -23,10 +27,19 @@ int main() {
     SmartRadiator    radiator   ("Radiator1",   "RAD-001",    "Radiator",   "home/radiator1");
 
     lamp.setSender(&sender);
+
     thermostat.setSender(&sender);
+    ThermostatEmulator thermoEmu(&thermostat, &radiator, 16.0f);
+    thermoEmu.start();
+
     plug.setSender(&sender);
+    PlugEmulator plgEmu(&plug);
+    plgEmu.start();
+
     hygrometer.setSender(&sender);
     radiator.setSender(&sender);
+    RadiatorEmulator radEmu(&radiator, 10);
+    radEmu.start();
 
     sender.connect();
 
@@ -82,6 +95,9 @@ int main() {
 
     std::this_thread::sleep_for(std::chrono::hours(24));
 
+    thermoEmu.stop();
+    plgEmu.stop();
+    radEmu.stop();
     sender.disconnect();
     return 0;
 }

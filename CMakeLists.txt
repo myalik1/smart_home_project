@@ -19,6 +19,9 @@ add_executable(SmartHomeApp
     src/SmartHygrometer.cpp
     src/SmartRadiator.cpp
     src/MqttMessageSender.cpp
+    src/RadiatorEmulator.cpp
+    src/PlugEmulator.cpp
+    src/ThermostatEmulator.cpp
 )
 target_link_libraries(SmartHomeApp PRIVATE paho-mqttpp3 paho-mqtt3as)
 
