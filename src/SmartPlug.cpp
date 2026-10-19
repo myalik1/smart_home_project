@@ -71,3 +71,18 @@ void SmartPlug::onMessageReceived(const std::string& message) {
         std::cerr << "[ERROR] SmartPlug JSON parse failed: " << e.what() << '\n';
     }
 }
+
+bool SmartPlug::getIsOn(){
+    std::lock_guard<std::mutex> lock(stateMutex);
+    return isOn;
+}
+
+float SmartPlug::getCurrentPower(){
+    std::lock_guard<std::mutex> lock(stateMutex);
+    return currentPower;
+}
+
+void SmartPlug::setCurrentPower(float temp){
+    std::lock_guard<std::mutex> lock(stateMutex);
+    currentPower = temp;
+}
