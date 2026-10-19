@@ -2,6 +2,7 @@
 #include <string>
 #include <thread>
 #include <chrono>
+#include "include/HygrometerEmulator.h"
 #include "include/SmartLamp.h"
 #include "include/SmartThermostat.h"
 #include "include/SmartPlug.h"
@@ -12,6 +13,7 @@
 #include "include/PlugEmulator.h"
 #include "include/ThermostatEmulator.h"
 #include "include/RadiatorEmulator.h"
+#include "include/HygrometerEmulator.h"
 
 int main() {
     const std::string BROKER = "tcp://localhost:1883";
@@ -37,6 +39,9 @@ int main() {
     plgEmu.start();
 
     hygrometer.setSender(&sender);
+    HygrometerEmulator hygroEmu(&hygrometer, 45.0f);
+    hygroEmu.start();
+
     radiator.setSender(&sender);
     RadiatorEmulator radEmu(&radiator, 10);
     radEmu.start();
@@ -95,6 +100,7 @@ int main() {
 
     std::this_thread::sleep_for(std::chrono::hours(24));
 
+    hygroEmu.stop();
     thermoEmu.stop();
     plgEmu.stop();
     radEmu.stop();
