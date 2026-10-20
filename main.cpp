@@ -2,14 +2,12 @@
 #include <string>
 #include <thread>
 #include <chrono>
-#include "include/HygrometerEmulator.h"
 #include "include/SmartLamp.h"
 #include "include/SmartThermostat.h"
 #include "include/SmartPlug.h"
 #include "include/SmartHygrometer.h"
 #include "include/SmartRadiator.h"
 #include "include/MqttMessageSender.h"
-#include "include/RadiatorEmulator.h"
 #include "include/PlugEmulator.h"
 #include "include/ThermostatEmulator.h"
 #include "include/RadiatorEmulator.h"
@@ -32,21 +30,22 @@ int main() {
 
     thermostat.setSender(&sender);
     ThermostatEmulator thermoEmu(&thermostat, &radiator, 16.0f);
-    thermoEmu.start();
 
     plug.setSender(&sender);
     PlugEmulator plgEmu(&plug);
-    plgEmu.start();
 
     hygrometer.setSender(&sender);
     HygrometerEmulator hygroEmu(&hygrometer, 45.0f);
-    hygroEmu.start();
 
     radiator.setSender(&sender);
     RadiatorEmulator radEmu(&radiator, 10);
-    radEmu.start();
 
     sender.connect();
+
+    thermoEmu.start();
+    plgEmu.start();
+    hygroEmu.start();
+    radEmu.start();
 
     sender.subscribe("home/lamp1/set",
         [&lamp](const std::string&, const std::string& payload) {
@@ -94,7 +93,7 @@ int main() {
     std::cout << "    mosquitto_pub -h localhost -t home/hygrometer1/set -m '{\"command\": \"UPDATE_HUMIDITY\", \"value\": 65}'\n";
     std::cout << "  Радиатор включить + целевая 23°C:\n";
     std::cout << "    mosquitto_pub -h localhost -t home/radiator1/set -m '{\"command\": \"ON\"}'\n";
-    std::cout << "    mosquitto_pub -h localhost -t home/radiator1/set -m '{\"command\": \"SET_TARGET_TEMP\", \"value\": 23}'\n";
+    std::cout << "    mosquitto_pub -h localhost -t home/radiator1/set -m '{\"command\": \"SET_VALVE_LEVEL\", \"value\": 50}'\n";
     std::cout << "\nCtrl+C для выхода.\n" << std::endl;
 
 
