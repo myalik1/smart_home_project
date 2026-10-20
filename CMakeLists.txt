@@ -19,6 +19,10 @@ add_executable(SmartHomeApp
     src/SmartHygrometer.cpp
     src/SmartRadiator.cpp
     src/MqttMessageSender.cpp
+    src/RadiatorEmulator.cpp
+    src/PlugEmulator.cpp
+    src/ThermostatEmulator.cpp
+    src/HygrometerEmulator.cpp
 )
 target_link_libraries(SmartHomeApp PRIVATE paho-mqttpp3 paho-mqtt3as)
 
@@ -45,12 +49,20 @@ add_executable(smart_home_tests
     tests/test_SmartPlug.cpp
     tests/test_SmartHygrometer.cpp
     tests/test_SmartRadiator.cpp
+    tests/test_HygrometerEmulator.cpp
+    tests/test_PlugEmulator.cpp
+    tests/test_RadiatorEmulator.cpp
+    tests/test_ThermostatEmulator.cpp
     src/SmartLamp.cpp
     src/SmartThermostat.cpp
     src/SmartPlug.cpp
     src/SmartHygrometer.cpp
     src/SmartRadiator.cpp
     src/SmartDevice.cpp
+    src/PlugEmulator.cpp
+    src/RadiatorEmulator.cpp
+    src/HygrometerEmulator.cpp
+    src/ThermostatEmulator.cpp
 )
 
 target_link_libraries(smart_home_tests gtest_main)

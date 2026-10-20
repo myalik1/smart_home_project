@@ -14,6 +14,10 @@ public:
     // Publishes current power state and power consumption (in Watts)
     void publishState() override;
 
+    bool getIsOn();
+    float getCurrentPower();
+    void setCurrentPower(float power);
+
 private:
     // Current power state (true if electricity is flowing)
     bool isOn;

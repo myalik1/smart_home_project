@@ -11,9 +11,8 @@ SmartRadiator::SmartRadiator(std::string name, std::string serial, std::string t
     deviceType = type;
     mqttTopic = topic;
     isOn = false;
-    targetTemperature = 22.0f;
-    currentTemperature = 20.0f;
-    valveLevel = 0;
+    targetValveLevel = 0;
+    currentValveLevel = 0;
 }
 
 void SmartRadiator::publishState() {
@@ -26,9 +25,8 @@ void SmartRadiator::publishState() {
         data["serialNumber"] = serialNumber;
         data["deviceType"] = deviceType;
         data["isOn"] = isOn;
-        data["targetTemperature"] = targetTemperature;
-        data["currentTemperature"] = currentTemperature;
-        data["valveLevel"] = valveLevel;
+        data["targetValveLevel"] = targetValveLevel;
+        data["currentValveLevel"] = currentValveLevel;
     }
 
     sender->sendMessage(mqttTopic, data.dump());
@@ -45,32 +43,22 @@ void SmartRadiator::onMessageReceived(const std::string& message) {
         {
             std::lock_guard<std::mutex> lock(stateMutex);
 
-            if (command == "ON") {
-                if (!isOn) {
-                    isOn = true;
-                    stateChanged = true;
-                }
-            }
-            else if (command == "OFF") {
-                if (isOn) {
-                    isOn = false;
-                    valveLevel = 0;
-                    stateChanged = true;
-                }
-            }
-            else if (command == "SET_TARGET_TEMP" && incomingData.contains("value")) {
-                float newVal = incomingData["value"];
-                targetTemperature = std::clamp(newVal, 5.0f, 30.0f);
+            if (command == "ON" && !isOn) {
+                isOn = true;
                 stateChanged = true;
             }
-            else if (command == "UPDATE_CURRENT_TEMP" && incomingData.contains("value")) {
-                currentTemperature = incomingData["value"];
+            else if (command == "OFF" && (isOn || targetValveLevel != 0)) {
+                isOn = false;
+                targetValveLevel = 0;
                 stateChanged = true;
             }
             else if (command == "SET_VALVE_LEVEL" && incomingData.contains("value")) {
-                if (isOn) {
-                    int newVal = incomingData["value"];
-                    valveLevel = std::clamp(newVal, 0, 100);
+                int newLevel = std::clamp(incomingData["value"].get<int>(), 0, 100);
+                bool newPowerState = (newLevel > 0);
+
+                if (targetValveLevel != newLevel || isOn != newPowerState) {
+                    targetValveLevel = newLevel;
+                    isOn = newPowerState;
                     stateChanged = true;
                 }
             }
@@ -79,8 +67,27 @@ void SmartRadiator::onMessageReceived(const std::string& message) {
         if (stateChanged) {
             publishState();
         }
-
     } catch (const json::exception& e) {
         std::cerr << "[ERROR] SmartRadiator JSON parse failed: " << e.what() << '\n';
     }
+}
+
+bool SmartRadiator::getIsOn() {
+    std::lock_guard<std::mutex> lock(stateMutex);
+    return isOn;
+}
+
+int SmartRadiator::getTargetValveLevel() {
+    std::lock_guard<std::mutex> lock(stateMutex);
+    return targetValveLevel;
+}
+
+int SmartRadiator::getCurrentValveLevel() {
+    std::lock_guard<std::mutex> lock(stateMutex);
+    return currentValveLevel;
+}
+
+void SmartRadiator::setCurrentValveLevel(int level) {
+    std::lock_guard<std::mutex> lock(stateMutex);
+    currentValveLevel = std::clamp(level, 0, 100);
 }

@@ -14,6 +14,9 @@ public:
     // Publishes current humidity level
     void publishState() override;
 
+    float getCurrentHumidity();
+    void setCurrentHumidity(float hum);
+
 private:
     // Current humidity level in percentage (0-100)
     float currentHumidity;

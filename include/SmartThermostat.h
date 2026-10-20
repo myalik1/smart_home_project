@@ -3,27 +3,28 @@
 #include <string>
 #include <mutex>
 
-// Concrete implementation of a smart thermostat device
 class SmartThermostat : public SmartDevice {
 public:
-    SmartThermostat(std::string name, std::string serial, std::string type, std::string topic);
+    SmartThermostat(std::string name, std::string serial, std::string type, std::string topic,
+                    std::string radCmdTopic = "home/radiator1/set");
 
-    // Handles SET_TEMPERATURE and SET_MODE JSON commands
     void onMessageReceived(const std::string& message) override;
-
-    // Publishes current/target temperatures and HVAC mode
     void publishState() override;
 
-private:
-    // Target temperature set by the user
-    float targetTemperature;
+    float getCurrentTemperature();
+    float getTargetTemperature();
+    std::string getMode();
+    void updateCurrentTemperature(float temp);
 
-    // Current ambient temperature measured by sensor
+private:
+    void syncRadiatorValve();
+
+    std::string mode; // "OFF", "HEAT", "COOL"
+    float targetTemperature;
     float currentTemperature;
 
-    // Current operating mode (e.g., "OFF", "HEAT", "COOL")
-    std::string mode;
+    std::string radiatorCommandTopic;
+    int lastSentValveLevel;
 
-    // Mutex to protect state variables from concurrent access
     std::mutex stateMutex;
 };

@@ -58,3 +58,14 @@ void SmartHygrometer::onMessageReceived(const std::string& message) {
         std::cerr << "[ERROR] SmartHygrometer JSON parse failed: " << e.what() << '\n';
     }
 }
+
+float SmartHygrometer::getCurrentHumidity() {
+    std::lock_guard<std::mutex> lock(stateMutex);
+    return currentHumidity;
+}
+
+void SmartHygrometer::setCurrentHumidity(float hum) {
+    std::lock_guard<std::mutex> lock(stateMutex);
+    float clamped = std::clamp(hum, 0.0f, 100.0f);
+    currentHumidity = std::round(clamped * 10.0f) / 10.0f;
+}
