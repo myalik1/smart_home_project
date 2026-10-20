@@ -11,10 +11,8 @@ public:
 
     void start() override;
     void stop() override;
-
-private:
     void tick() override;
-
+private:
     SmartPlug* plug;
     std::atomic<bool> isRunning;
     std::thread emuThread;

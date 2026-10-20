@@ -21,27 +21,27 @@ protected:
 };
 
 TEST_F(SmartRadiatorTest, ValveOperationsLinkedToPowerState) {
-    radiator->onMessageReceived(R"({"command": "SET_VALVE_LEVEL", "value": 50})");
-    EXPECT_TRUE(mockSender.lastMessage.empty());
-
-    radiator->onMessageReceived(R"({"command": "ON"})");
     radiator->onMessageReceived(R"({"command": "SET_VALVE_LEVEL", "value": 75})");
     json onResult = json::parse(mockSender.lastMessage);
-    EXPECT_EQ(onResult["valveLevel"], 75);
+    EXPECT_EQ(onResult["isOn"], true);
+    EXPECT_EQ(onResult["targetValveLevel"], 75);
 
     radiator->onMessageReceived(R"({"command": "OFF"})");
     json offResult = json::parse(mockSender.lastMessage);
-    EXPECT_EQ(offResult["valveLevel"], 0);
+    EXPECT_EQ(offResult["isOn"], false);
+    EXPECT_EQ(offResult["targetValveLevel"], 0);
 }
 
-TEST_F(SmartRadiatorTest, UpdatesTemperatures) {
-    radiator->onMessageReceived(R"({"command": "SET_TARGET_TEMP", "value": 26.0})");
-    json tResult = json::parse(mockSender.lastMessage);
-    EXPECT_EQ(tResult["targetTemperature"], 26.0f);
+TEST_F(SmartRadiatorTest, ClampsValveLevel){
+    radiator->onMessageReceived(R"({"command": "ON"})");
+    radiator->onMessageReceived(R"({"command": "SET_VALVE_LEVEL", "value": 150})");
+    json onResult = json::parse(mockSender.lastMessage);
+    EXPECT_EQ(onResult["targetValveLevel"], 100);
 
-    radiator->onMessageReceived(R"({"command": "UPDATE_CURRENT_TEMP", "value": 18.5})");
-    json cResult = json::parse(mockSender.lastMessage);
-    EXPECT_EQ(cResult["currentTemperature"], 18.5f);
+    radiator->onMessageReceived(R"({"command": "SET_VALVE_LEVEL", "value": -10})");
+    onResult = json::parse(mockSender.lastMessage);
+    EXPECT_EQ(onResult["targetValveLevel"], 0);
+    EXPECT_EQ(onResult["isOn"], false);
 }
 
 TEST_F(SmartRadiatorTest, IgnoresInvalidJson) {

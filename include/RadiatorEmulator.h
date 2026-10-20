@@ -11,10 +11,8 @@ public:
 
     void start() override;
     void stop() override;
-
-private:
     void tick() override;
-
+private:
     SmartRadiator* radiator;
     int stepSize;
 
