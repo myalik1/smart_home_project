@@ -72,7 +72,7 @@ void MqttMessageSender::subscribe(
 
     if (isConnected) {
         try {
-            client->subscribe(topic, 1)->wait();
+            client->subscribe(topic, 1);
             std::cout << "[MQTT] Подписка на '" << topic << "' активна" << std::endl;
         } catch (const mqtt::exception& e) {
             std::cerr << "[MQTT ERROR] Ошибка подписки на '" << topic
@@ -87,7 +87,7 @@ void MqttMessageSender::connected(const std::string& /*cause*/) {
 
     for (const auto& [topic, _] : subscribers) {
         try {
-            client->subscribe(topic, 1)->wait();
+            client->subscribe(topic, 1);
             std::cout << "[MQTT] Подписка на '" << topic << "' активна" << std::endl;
         } catch (const mqtt::exception& e) {
             std::cerr << "[MQTT ERROR] Переподписка на '" << topic
