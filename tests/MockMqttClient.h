@@ -29,12 +29,27 @@ public:
     }
 
     bool simulateIncomingMessage(const std::string& topic, const std::string& payload) {
+        bool handled = false;
         auto it = subscriptions.find(topic);
         if (it != subscriptions.end() && it->second) {
             it->second(topic, payload);
-            return true;
+            handled = true;
         }
-        return false;
+
+        // Support MQTT wildcard '#'
+        for (const auto& [subTopic, cb] : subscriptions) {
+            if (subTopic == topic) continue;
+
+            if (subTopic == "#") {
+                if (cb) { cb(topic, payload); handled = true; }
+            } else if (subTopic.size() >= 2 && subTopic.substr(subTopic.size() - 2) == "/#") {
+                std::string prefix = subTopic.substr(0, subTopic.size() - 2);
+                if (topic == prefix || (topic.rfind(prefix + "/", 0) == 0)) {
+                    if (cb) { cb(topic, payload); handled = true; }
+                }
+            }
+        }
+        return handled;
     }
 
     bool isSubscribed(const std::string& topic) const {
