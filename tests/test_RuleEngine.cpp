@@ -184,3 +184,150 @@ TEST_F(RuleEngineTest, BackgroundThreadStartsAndStopsGracefully) {
     ruleEngine->stop();
     EXPECT_FALSE(ruleEngine->isRunning());
 }
+
+
+TEST_F(RuleEngineTest, IntervalTimeWindowTriggersStartOnEntryAndEndOnExit) {
+    auto t0 = std::chrono::system_clock::now();
+    auto startWindow = t0 + std::chrono::seconds(10);
+    auto endWindow = t0 + std::chrono::seconds(30);
+
+    RuleAction startAct("Plug1", R"({"command": "ON"})");
+    RuleAction endAct("Plug1", R"({"command": "OFF"})");
+
+    auto timer = ruleEngine->addTimeWindowTimer(
+        "window_work_hours", startWindow, endWindow, startAct, endAct);
+
+    ASSERT_NE(timer, nullptr);
+    EXPECT_FALSE(timer->isInsideWindow());
+    EXPECT_FALSE(timer->isExecuted());
+
+    // 1. Before window -> nothing fired
+    ruleEngine->tick(t0 + std::chrono::seconds(5));
+    EXPECT_FALSE(timer->isInsideWindow());
+    EXPECT_EQ(ruleEngine->getExecutionCount(), 0u);
+
+    // 2. Entering window -> startAction fired
+    ruleEngine->tick(startWindow);
+    EXPECT_TRUE(timer->isInsideWindow());
+    EXPECT_EQ(ruleEngine->getExecutionCount(), 1u);
+    EXPECT_EQ(mockClient.lastTopic, "home/plug1/set");
+    EXPECT_EQ(mockClient.lastMessage, R"({"command": "ON"})");
+
+    // 3. Inside window without maintainState -> does not duplicate
+    mockClient.lastMessage.clear();
+    ruleEngine->tick(t0 + std::chrono::seconds(20));
+    EXPECT_TRUE(timer->isInsideWindow());
+    EXPECT_EQ(ruleEngine->getExecutionCount(), 1u);
+    EXPECT_TRUE(mockClient.lastMessage.empty());
+
+    // 4. Leaving window -> endAction fired
+    ruleEngine->tick(endWindow);
+    EXPECT_FALSE(timer->isInsideWindow());
+    EXPECT_TRUE(timer->isExecuted());
+    EXPECT_EQ(ruleEngine->getExecutionCount(), 2u);
+    EXPECT_EQ(mockClient.lastMessage, R"({"command": "OFF"})");
+}
+
+TEST_F(RuleEngineTest, IntervalTimerMaintainsStatePeriodicallyInsideWindow) {
+    auto t0 = std::chrono::system_clock::now();
+    auto startWindow = t0;
+    auto endWindow = t0 + std::chrono::seconds(40);
+
+    RuleAction startAct("Lamp1", R"({"command": "SET_BRIGHTNESS", "value": 75})");
+    RuleAction endAct("Lamp1", R"({"command": "OFF"})");
+
+    // Maintain state every 10 seconds inside the window
+    auto timer = ruleEngine->addTimeWindowTimer(
+        "maintain_lamp", startWindow, endWindow, startAct, endAct,
+        true, std::chrono::seconds(10));
+
+    // Entry at t0 -> initial assert (1st fire)
+    ruleEngine->tick(t0);
+    EXPECT_EQ(ruleEngine->getExecutionCount(), 1u);
+    EXPECT_EQ(mockClient.lastMessage, R"({"command": "SET_BRIGHTNESS", "value": 75})");
+
+    // At t0 + 5s -> interval not reached yet
+    ruleEngine->tick(t0 + std::chrono::seconds(5));
+    EXPECT_EQ(ruleEngine->getExecutionCount(), 1u);
+
+    // At t0 + 10s -> re-asserts state to maintain (2nd fire)
+    ruleEngine->tick(t0 + std::chrono::seconds(10));
+    EXPECT_EQ(ruleEngine->getExecutionCount(), 2u);
+
+    // At t0 + 20s -> re-asserts state to maintain (3rd fire)
+    ruleEngine->tick(t0 + std::chrono::seconds(20));
+    EXPECT_EQ(ruleEngine->getExecutionCount(), 3u);
+
+    // At t0 + 40s -> exit window triggers endAction (4th fire)
+    ruleEngine->tick(endWindow);
+    EXPECT_EQ(ruleEngine->getExecutionCount(), 4u);
+    EXPECT_EQ(mockClient.lastMessage, R"({"command": "OFF"})");
+}
+
+TEST_F(RuleEngineTest, PeriodicTimerTriggersEveryIntervalUpToMaxTicks) {
+    auto t0 = std::chrono::system_clock::now();
+    RuleAction pingAction("Plug1", R"({"command": "PING"})");
+
+    auto periodicTimer = ruleEngine->addPeriodicTimer(
+        "periodic_ping", std::chrono::milliseconds(100), pingAction, 3);
+
+    ASSERT_NE(periodicTimer, nullptr);
+    EXPECT_EQ(periodicTimer->getMode(), IntervalTimer::Mode::PERIODIC);
+
+    // 1st tick at t0 initializes baseline
+    ruleEngine->tick(t0);
+    EXPECT_EQ(ruleEngine->getExecutionCount(), 0u);
+
+    // 2nd tick at +100ms fires tick 1
+    ruleEngine->tick(t0 + std::chrono::milliseconds(100));
+    EXPECT_EQ(ruleEngine->getExecutionCount(), 1u);
+    EXPECT_EQ(periodicTimer->getTickCount(), 1u);
+    EXPECT_FALSE(periodicTimer->isExecuted());
+
+    // 3rd tick at +200ms fires tick 2
+    ruleEngine->tick(t0 + std::chrono::milliseconds(200));
+    EXPECT_EQ(ruleEngine->getExecutionCount(), 2u);
+    EXPECT_EQ(periodicTimer->getTickCount(), 2u);
+
+    // 4th tick at +300ms fires tick 3 and completes maxTicks
+    ruleEngine->tick(t0 + std::chrono::milliseconds(300));
+    EXPECT_EQ(ruleEngine->getExecutionCount(), 3u);
+    EXPECT_EQ(periodicTimer->getTickCount(), 3u);
+    EXPECT_TRUE(periodicTimer->isExecuted());
+
+    // 5th tick at +400ms -> should not fire again
+    ruleEngine->tick(t0 + std::chrono::milliseconds(400));
+    EXPECT_EQ(ruleEngine->getExecutionCount(), 3u);
+}
+
+TEST_F(RuleEngineTest, TimeOfDayWindowCalculationStandardAndOvernight) {
+    // Helper lambda to construct a specific hour:min:sec time_point for testing
+    auto makeTime = [](int hour, int min, int sec) {
+        std::time_t nowTime = std::time(nullptr);
+        std::tm tmVal;
+#if defined(_WIN32)
+        localtime_s(&tmVal, &nowTime);
+#else
+        localtime_r(&nowTime, &tmVal);
+#endif
+        tmVal.tm_hour = hour;
+        tmVal.tm_min = min;
+        tmVal.tm_sec = sec;
+        return std::chrono::system_clock::from_time_t(std::mktime(&tmVal));
+    };
+
+    // 1. Daytime window: 09:00:00 to 18:00:00
+    EXPECT_FALSE(IntervalTimer::isTimeOfDayInsideWindow(9, 0, 0, 18, 0, 0, makeTime(8, 59, 59)));
+    EXPECT_TRUE(IntervalTimer::isTimeOfDayInsideWindow(9, 0, 0, 18, 0, 0, makeTime(9, 0, 0)));
+    EXPECT_TRUE(IntervalTimer::isTimeOfDayInsideWindow(9, 0, 0, 18, 0, 0, makeTime(12, 30, 0)));
+    EXPECT_TRUE(IntervalTimer::isTimeOfDayInsideWindow(9, 0, 0, 18, 0, 0, makeTime(17, 59, 59)));
+    EXPECT_FALSE(IntervalTimer::isTimeOfDayInsideWindow(9, 0, 0, 18, 0, 0, makeTime(18, 0, 0)));
+
+    // 2. Overnight window: 22:00:00 to 06:00:00
+    EXPECT_FALSE(IntervalTimer::isTimeOfDayInsideWindow(22, 0, 0, 6, 0, 0, makeTime(21, 59, 59)));
+    EXPECT_TRUE(IntervalTimer::isTimeOfDayInsideWindow(22, 0, 0, 6, 0, 0, makeTime(22, 0, 0)));
+    EXPECT_TRUE(IntervalTimer::isTimeOfDayInsideWindow(22, 0, 0, 6, 0, 0, makeTime(23, 30, 0)));
+    EXPECT_TRUE(IntervalTimer::isTimeOfDayInsideWindow(22, 0, 0, 6, 0, 0, makeTime(2, 0, 0)));
+    EXPECT_TRUE(IntervalTimer::isTimeOfDayInsideWindow(22, 0, 0, 6, 0, 0, makeTime(5, 59, 59)));
+    EXPECT_FALSE(IntervalTimer::isTimeOfDayInsideWindow(22, 0, 0, 6, 0, 0, makeTime(6, 0, 0)));
+}

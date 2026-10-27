@@ -23,6 +23,7 @@ add_executable(SmartHomeApp
     src/TelemetryHistoryManager.cpp
     src/DeviceManager.cpp
     src/OneShotTimer.cpp
+    src/IntervalTimer.cpp
     src/RuleEngine.cpp
 )
 target_link_libraries(SmartHomeApp PRIVATE paho-mqttpp3 paho-mqtt3as SQLite::SQLite3)
@@ -62,6 +63,7 @@ add_executable(smart_home_tests
     src/TelemetryHistoryManager.cpp
     src/DeviceManager.cpp
     src/OneShotTimer.cpp
+    src/IntervalTimer.cpp
     src/RuleEngine.cpp
 )
 

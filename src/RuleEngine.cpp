@@ -36,6 +36,14 @@ bool RuleEngine::addTimer(std::shared_ptr<ITimer> timer) {
         });
     }
 
+    // Bind callback if it's an IntervalTimer
+    auto interval = std::dynamic_pointer_cast<IntervalTimer>(timer);
+    if (interval) {
+        interval->setCallback([this](const std::string& timerId, const RuleAction& action) {
+            this->executeAction(timerId, action);
+        });
+    }
+
     std::lock_guard<std::mutex> lock(mutex_);
     if (timers_.find(id) != timers_.end()) {
         return false;
@@ -69,6 +77,68 @@ std::shared_ptr<OneShotTimer> RuleEngine::addTimeOfDayTimer(
 
     auto timer = std::make_shared<OneShotTimer>(
         timerId, hour, minute, second, action, repeatDaily,
+        [this](const std::string& id, const RuleAction& act) {
+            this->executeAction(id, act);
+        });
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    timers_[timerId] = timer;
+    return timer;
+}
+
+std::shared_ptr<IntervalTimer> RuleEngine::addTimeWindowTimer(
+    const std::string& timerId,
+    const std::chrono::system_clock::time_point& start,
+    const std::chrono::system_clock::time_point& end,
+    const RuleAction& startAction,
+    const RuleAction& endAction,
+    bool maintainState,
+    std::chrono::seconds maintainInterval) {
+
+    auto timer = std::make_shared<IntervalTimer>(
+        timerId, start, end, startAction, endAction,
+        maintainState, maintainInterval,
+        [this](const std::string& id, const RuleAction& act) {
+            this->executeAction(id, act);
+        });
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    timers_[timerId] = timer;
+    return timer;
+}
+
+std::shared_ptr<IntervalTimer> RuleEngine::addTimeOfDayIntervalTimer(
+    const std::string& timerId,
+    int startHour, int startMin, int startSec,
+    int endHour, int endMin, int endSec,
+    const RuleAction& startAction,
+    const RuleAction& endAction,
+    bool repeatDaily,
+    bool maintainState,
+    std::chrono::seconds maintainInterval) {
+
+    auto timer = std::make_shared<IntervalTimer>(
+        timerId, startHour, startMin, startSec,
+        endHour, endMin, endSec,
+        startAction, endAction, repeatDaily,
+        maintainState, maintainInterval,
+        [this](const std::string& id, const RuleAction& act) {
+            this->executeAction(id, act);
+        });
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    timers_[timerId] = timer;
+    return timer;
+}
+
+std::shared_ptr<IntervalTimer> RuleEngine::addPeriodicTimer(
+    const std::string& timerId,
+    std::chrono::milliseconds interval,
+    const RuleAction& action,
+    size_t maxTicks) {
+
+    auto timer = std::make_shared<IntervalTimer>(
+        timerId, interval, action, maxTicks,
         [this](const std::string& id, const RuleAction& act) {
             this->executeAction(id, act);
         });

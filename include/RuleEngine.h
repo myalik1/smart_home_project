@@ -2,6 +2,7 @@
 
 #include "ITimer.h"
 #include "OneShotTimer.h"
+#include "IntervalTimer.h"
 #include "RuleAction.h"
 #include "DeviceManager.h"
 
@@ -46,6 +47,32 @@ public:
         int hour, int minute, int second,
         const RuleAction& action,
         bool repeatDaily = false);
+
+    // Convenience methods for interval timers (PPT-18)
+    std::shared_ptr<IntervalTimer> addTimeWindowTimer(
+        const std::string& timerId,
+        const std::chrono::system_clock::time_point& start,
+        const std::chrono::system_clock::time_point& end,
+        const RuleAction& startAction,
+        const RuleAction& endAction,
+        bool maintainState = false,
+        std::chrono::seconds maintainInterval = std::chrono::seconds(60));
+
+    std::shared_ptr<IntervalTimer> addTimeOfDayIntervalTimer(
+        const std::string& timerId,
+        int startHour, int startMin, int startSec,
+        int endHour, int endMin, int endSec,
+        const RuleAction& startAction,
+        const RuleAction& endAction,
+        bool repeatDaily = true,
+        bool maintainState = false,
+        std::chrono::seconds maintainInterval = std::chrono::seconds(60));
+
+    std::shared_ptr<IntervalTimer> addPeriodicTimer(
+        const std::string& timerId,
+        std::chrono::milliseconds interval,
+        const RuleAction& action,
+        size_t maxTicks = 0);
 
     bool removeTimer(const std::string& timerId);
     bool hasTimer(const std::string& timerId) const;
