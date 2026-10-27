@@ -3,6 +3,7 @@
 #include "SmartDevice.h"
 #include "IMqttClient.h"
 #include "DeviceTelemetry.h"
+#include "TelemetryHistoryManager.h"
 
 #include <string>
 #include <vector>
@@ -52,6 +53,11 @@ public:
 
     std::chrono::system_clock::time_point getLastSeenTime(const std::string& deviceName) const;
 
+    // Database history integration (PPT-16)
+    bool attachStorage(std::shared_ptr<IStorage> storage);
+    std::shared_ptr<TelemetryHistoryManager> getHistoryManager() const;
+    std::vector<DeviceTelemetry> getDeviceHistory(const std::string& deviceName, int limit = 100) const;
+
     void onStateUpdate(StateListener listener);
     void onTelemetryReceived(TelemetryListener listener);
 
@@ -71,6 +77,8 @@ private:
 
     std::unordered_map<std::string, DeviceTelemetry> latestTelemetry_;
     std::unordered_map<std::string, std::chrono::system_clock::time_point> lastSeenTime_;
+
+    std::shared_ptr<TelemetryHistoryManager> historyManager_;
 
     std::vector<StateListener> stateListeners_;
     std::vector<TelemetryListener> telemetryListeners_;

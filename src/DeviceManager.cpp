@@ -265,6 +265,38 @@ std::chrono::system_clock::time_point DeviceManager::getLastSeenTime(const std::
     return std::chrono::system_clock::time_point{};
 }
 
+bool DeviceManager::attachStorage(std::shared_ptr<IStorage> storage) {
+    if (!storage) {
+        return false;
+    }
+    auto historyMgr = std::make_shared<TelemetryHistoryManager>(std::move(storage));
+    if (!historyMgr->initSchema()) {
+        return false;
+    }
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        historyManager_ = historyMgr;
+    }
+    return true;
+}
+
+std::shared_ptr<TelemetryHistoryManager> DeviceManager::getHistoryManager() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return historyManager_;
+}
+
+std::vector<DeviceTelemetry> DeviceManager::getDeviceHistory(const std::string& deviceName, int limit) const {
+    std::shared_ptr<TelemetryHistoryManager> mgr;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        mgr = historyManager_;
+    }
+    if (mgr) {
+        return mgr->getHistory(deviceName, limit);
+    }
+    return {};
+}
+
 void DeviceManager::onStateUpdate(StateListener listener) {
     std::lock_guard<std::mutex> lock(mutex_);
     stateListeners_.push_back(std::move(listener));
@@ -374,6 +406,7 @@ void DeviceManager::handleIncomingMessage(const std::string& topic, const std::s
 
     std::vector<StateListener> stateListenersCopy;
     std::vector<TelemetryListener> telemetryListenersCopy;
+    std::shared_ptr<TelemetryHistoryManager> historyMgrCopy;
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -410,6 +443,7 @@ void DeviceManager::handleIncomingMessage(const std::string& topic, const std::s
 
             stateListenersCopy = stateListeners_;
             telemetryListenersCopy = telemetryListeners_;
+            historyMgrCopy = historyManager_;
         }
     }
 
@@ -425,6 +459,10 @@ void DeviceManager::handleIncomingMessage(const std::string& topic, const std::s
         }
 
         if (hasValidTelemetry) {
+            if (historyMgrCopy) {
+                historyMgrCopy->saveTelemetry(parsedTelemetry);
+            }
+
             for (const auto& listener : telemetryListenersCopy) {
                 if (listener) {
                     listener(parsedTelemetry);

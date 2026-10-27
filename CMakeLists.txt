@@ -20,6 +20,7 @@ add_executable(SmartHomeApp
     src/SmartRadiator.cpp
     src/MqttMessageSender.cpp
     src/SQLiteStorage.cpp
+    src/TelemetryHistoryManager.cpp
     src/DeviceManager.cpp
 )
 target_link_libraries(SmartHomeApp PRIVATE paho-mqttpp3 paho-mqtt3as SQLite::SQLite3)
@@ -47,6 +48,7 @@ add_executable(smart_home_tests
     tests/test_SmartRadiator.cpp
     tests/test_SQLiteStorage.cpp
     tests/test_DeviceManager.cpp
+    tests/test_TelemetryHistory.cpp
     src/SmartLamp.cpp
     src/SmartThermostat.cpp
     src/SmartPlug.cpp
@@ -54,6 +56,7 @@ add_executable(smart_home_tests
     src/SmartRadiator.cpp
     src/SmartDevice.cpp
     src/SQLiteStorage.cpp
+    src/TelemetryHistoryManager.cpp
     src/DeviceManager.cpp
 )
 
