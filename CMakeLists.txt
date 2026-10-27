@@ -25,6 +25,7 @@ add_executable(SmartHomeApp
     src/OneShotTimer.cpp
     src/IntervalTimer.cpp
     src/RuleEngine.cpp
+    src/RuleConfigParser.cpp
 )
 target_link_libraries(SmartHomeApp PRIVATE paho-mqttpp3 paho-mqtt3as SQLite::SQLite3)
 
@@ -53,6 +54,7 @@ add_executable(smart_home_tests
     tests/test_DeviceManager.cpp
     tests/test_TelemetryHistory.cpp
     tests/test_RuleEngine.cpp
+    tests/test_RuleConfigParser.cpp
     src/SmartLamp.cpp
     src/SmartThermostat.cpp
     src/SmartPlug.cpp
@@ -65,6 +67,7 @@ add_executable(smart_home_tests
     src/OneShotTimer.cpp
     src/IntervalTimer.cpp
     src/RuleEngine.cpp
+    src/RuleConfigParser.cpp
 )
 
 target_link_libraries(smart_home_tests gtest_main SQLite::SQLite3)
