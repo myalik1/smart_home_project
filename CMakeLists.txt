@@ -56,6 +56,7 @@ add_executable(smart_home_tests
     tests/test_RuleEngine.cpp
     tests/test_RuleConfigParser.cpp
     tests/test_TimerCoverage.cpp
+    tests/test_CommandRouting.cpp
     src/SmartLamp.cpp
     src/SmartThermostat.cpp
     src/SmartPlug.cpp
