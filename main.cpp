@@ -76,7 +76,7 @@ int main() {
     std::cout << "    mosquitto_pub -h localhost -t home/hygrometer1/set -m '{\"command\": \"UPDATE_HUMIDITY\", \"value\": 65}'\n";
     std::cout << "  Радиатор включить + целевая 23°C:\n";
     std::cout << "    mosquitto_pub -h localhost -t home/radiator1/set -m '{\"command\": \"ON\"}'\n";
-    std::cout << "    mosquitto_pub -h localhost -t home/radiator1/set -m '{\"command\": \"SET_TARGET_TEMP\", \"value\": 23}'\n";
+    std::cout << "    mosquitto_pub -h localhost -t home/radiator1/set -m '{\"command\": \"SET_VALVE_LEVEL\", \"value\": 50}'\n";
     std::cout << "\nCtrl+C для выхода.\n" << std::endl;
 
 

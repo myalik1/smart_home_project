@@ -9,6 +9,15 @@ find_package(PahoMqttCpp REQUIRED)
 
 include_directories(include)
 
+set(CORE_SOURCES
+    src/SmartDevice.cpp src/MqttMessageSender.cpp
+    src/SmartThermostat.cpp src/ThermostatEmulator.cpp
+    src/SmartRadiator.cpp src/RadiatorEmulator.cpp
+    src/SmartPlug.cpp src/PlugEmulator.cpp
+    src/SmartHygrometer.cpp src/HygrometerEmulator.cpp
+    src/SmartLamp.cpp
+)
+
 # Основное приложение
 add_executable(SmartHomeApp
     main.cpp
@@ -21,6 +30,26 @@ add_executable(SmartHomeApp
     src/MqttMessageSender.cpp
 )
 target_link_libraries(SmartHomeApp PRIVATE paho-mqttpp3 paho-mqtt3as)
+
+# 1. Приложение Термостата
+add_executable(app_thermostat apps/app_thermostat.cpp ${CORE_SOURCES})
+target_link_libraries(app_thermostat PRIVATE paho-mqttpp3 paho-mqtt3as pthread)
+
+# 2. Приложение Радиатора
+add_executable(app_radiator apps/app_radiator.cpp ${CORE_SOURCES})
+target_link_libraries(app_radiator PRIVATE paho-mqttpp3 paho-mqtt3as pthread)
+
+# 3. Приложение Розетки
+add_executable(app_plug apps/app_plug.cpp ${CORE_SOURCES})
+target_link_libraries(app_plug PRIVATE paho-mqttpp3 paho-mqtt3as pthread)
+
+# 4. Приложение Гигрометра
+add_executable(app_hygrometer apps/app_hygrometer.cpp ${CORE_SOURCES})
+target_link_libraries(app_hygrometer PRIVATE paho-mqttpp3 paho-mqtt3as pthread)
+
+# 5. Приложение Лампы
+add_executable(app_lamp apps/app_lamp.cpp ${CORE_SOURCES})
+target_link_libraries(app_lamp PRIVATE paho-mqttpp3 paho-mqtt3as pthread)
 
 # Временный тест MQTT (можно удалить позже)
 add_executable(mqtt_test mqtt_test.cpp)
@@ -45,12 +74,20 @@ add_executable(smart_home_tests
     tests/test_SmartPlug.cpp
     tests/test_SmartHygrometer.cpp
     tests/test_SmartRadiator.cpp
+    tests/test_HygrometerEmulator.cpp
+    tests/test_PlugEmulator.cpp
+    tests/test_RadiatorEmulator.cpp
+    tests/test_ThermostatEmulator.cpp
     src/SmartLamp.cpp
     src/SmartThermostat.cpp
     src/SmartPlug.cpp
     src/SmartHygrometer.cpp
     src/SmartRadiator.cpp
     src/SmartDevice.cpp
+    src/PlugEmulator.cpp
+    src/RadiatorEmulator.cpp
+    src/HygrometerEmulator.cpp
+    src/ThermostatEmulator.cpp
 )
 
 target_link_libraries(smart_home_tests gtest_main)

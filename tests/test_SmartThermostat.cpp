@@ -22,17 +22,21 @@ protected:
 
 TEST_F(SmartThermostatTest, ChangesModeAndTemperature) {
     thermostat->onMessageReceived(R"({"command": "SET_MODE", "mode": "HEAT"})");
-    json modeResult = json::parse(mockSender.lastMessage);
+    json modeResult = json::parse(mockSender.topicMessages["home/therm1"]);
     EXPECT_EQ(modeResult["mode"], "HEAT");
 
+    json radCmd = json::parse(mockSender.topicMessages["home/radiator1/set"]);
+    EXPECT_EQ(radCmd["command"], "SET_VALVE_LEVEL");
+    EXPECT_EQ(radCmd["value"], 100);
+
     thermostat->onMessageReceived(R"({"command": "SET_TEMPERATURE", "value": 25.5})");
-    json tempResult = json::parse(mockSender.lastMessage);
+    json tempResult = json::parse(mockSender.topicMessages["home/therm1"]);
     EXPECT_EQ(tempResult["targetTemperature"], 25.5f);
 }
 
 TEST_F(SmartThermostatTest, ClampsTemperature) {
     thermostat->onMessageReceived(R"({"command": "SET_TEMPERATURE", "value": 50.0})");
-    json result = json::parse(mockSender.lastMessage);
+    json result = json::parse(mockSender.topicMessages["home/therm1"]);
     EXPECT_EQ(result["targetTemperature"], 35.0f);
 }
 
@@ -43,7 +47,7 @@ TEST_F(SmartThermostatTest, IgnoresInvalidMode) {
 
 TEST_F(SmartThermostatTest, UpdatesCurrentTemperature) {
     thermostat->onMessageReceived(R"({"command": "UPDATE_CURRENT_TEMP", "value": 24.5})");
-    json result = json::parse(mockSender.lastMessage);
+    json result = json::parse(mockSender.topicMessages["home/therm1"]);
     EXPECT_EQ(result["currentTemperature"], 24.5f);
 }
 
