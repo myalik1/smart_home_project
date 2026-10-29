@@ -1,6 +1,7 @@
 #include "../include/PlugEmulator.h"
 #include <chrono>
-#include <cstdlib>
+#include <cmath>
+#include <random>
 
 PlugEmulator::PlugEmulator(SmartPlug* plg)
     : plug(plg), isRunning(false) {}
@@ -16,13 +17,15 @@ void PlugEmulator::start() {
     emuThread = std::thread([this]() {
         while (isRunning) {
             tick();
-            std::this_thread::sleep_for(std::chrono::seconds(2));
+            std::unique_lock<std::mutex> lock(cv_m);
+            cv.wait_for(lock, std::chrono::seconds(2), [this]{ return !isRunning; });
         }
     });
 }
 
 void PlugEmulator::stop() {
     isRunning = false;
+    cv.notify_all();
     if (emuThread.joinable()) {
         emuThread.join();
     }
@@ -34,9 +37,11 @@ void PlugEmulator::tick() {
     bool changed = false;
 
     if (isOn) {
-        float simulatedLoad = 2000.0f + ((rand() % 20) - 10);
+        static std::mt19937 gen(std::random_device{}());
+        static std::uniform_real_distribution<float> dist(-10.0f, 10.0f);
+        float simulatedLoad = 2000.0f + dist(gen);
 
-        if (abs(currentPower - simulatedLoad) > 0.1f) {
+        if (std::abs(currentPower - simulatedLoad) > 0.1f) {
             plug->setCurrentPower(simulatedLoad);
             changed = true;
         }

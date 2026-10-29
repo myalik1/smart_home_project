@@ -15,6 +15,7 @@ public:
     float getTargetTemperature();
     std::string getMode();
     void updateCurrentTemperature(float temp);
+    int getRadiatorValveLevel();
 
 private:
     void syncRadiatorValve();
@@ -27,4 +28,5 @@ private:
     int lastSentValveLevel;
 
     std::mutex stateMutex;
+    int currentRadiatorValveLevel;
 };

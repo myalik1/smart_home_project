@@ -52,8 +52,8 @@ void SmartRadiator::onMessageReceived(const std::string& message) {
                 targetValveLevel = 0;
                 stateChanged = true;
             }
-            else if (command == "SET_VALVE_LEVEL" && incomingData.contains("value")) {
-                int newLevel = std::clamp(incomingData["value"].get<int>(), 0, 100);
+            else if (command == "SET_VALVE_LEVEL" && incomingData.contains("value") && incomingData["value"].is_number()) {
+                int newLevel = std::clamp(static_cast<int>(std::round(incomingData["value"].get<float>())), 0, 100);
                 bool newPowerState = (newLevel > 0);
 
                 if (targetValveLevel != newLevel || isOn != newPowerState) {

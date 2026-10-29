@@ -18,6 +18,7 @@ SmartThermostat::SmartThermostat(std::string name, std::string serial, std::stri
     targetTemperature = 22.0f;
     currentTemperature = 18.0f;
     lastSentValveLevel = -1;
+    currentRadiatorValveLevel = 0;
 }
 
 void SmartThermostat::publishState() {
@@ -74,6 +75,14 @@ void SmartThermostat::syncRadiatorValve() {
 void SmartThermostat::onMessageReceived(const std::string& message) {
     try {
         json incomingData = json::parse(message);
+
+        if (incomingData.contains("currentValveLevel") && incomingData["currentValveLevel"].is_number()) {
+            std::lock_guard<std::mutex> lock(stateMutex);
+            int level = static_cast<int>(std::round(incomingData["currentValveLevel"].get<float>()));
+            currentRadiatorValveLevel = std::clamp(level, 0, 100);
+            return;
+        }
+
         if (!incomingData.contains("command")) return;
 
         std::string command = incomingData["command"];
@@ -143,4 +152,9 @@ void SmartThermostat::updateCurrentTemperature(float temp) {
         publishState();
         syncRadiatorValve();
     }
+}
+
+int SmartThermostat::getRadiatorValveLevel(){
+    std::lock_guard<std::mutex> lock(stateMutex);
+    return currentRadiatorValveLevel;
 }

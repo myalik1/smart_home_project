@@ -20,8 +20,8 @@ protected:
     }
 };
 
-TEST_F(SmartRadiatorTest, ValveOperationsLinkedToPowerState) {
-    radiator->onMessageReceived(R"({"command": "SET_VALVE_LEVEL", "value": 75})");
+TEST_F(SmartRadiatorTest, ValveOperationsLinkedToPowerStateAndAcceptsFloat) {
+    radiator->onMessageReceived(R"({"command": "SET_VALVE_LEVEL", "value": 75.4})");
     json onResult = json::parse(mockSender.lastMessage);
     EXPECT_EQ(onResult["isOn"], true);
     EXPECT_EQ(onResult["targetValveLevel"], 75);
@@ -32,7 +32,7 @@ TEST_F(SmartRadiatorTest, ValveOperationsLinkedToPowerState) {
     EXPECT_EQ(offResult["targetValveLevel"], 0);
 }
 
-TEST_F(SmartRadiatorTest, ClampsValveLevel){
+TEST_F(SmartRadiatorTest, ClampsValveLevel) {
     radiator->onMessageReceived(R"({"command": "ON"})");
     radiator->onMessageReceived(R"({"command": "SET_VALVE_LEVEL", "value": 150})");
     json onResult = json::parse(mockSender.lastMessage);
@@ -46,4 +46,5 @@ TEST_F(SmartRadiatorTest, ClampsValveLevel){
 
 TEST_F(SmartRadiatorTest, IgnoresInvalidJson) {
     radiator->onMessageReceived("invalid_json");
+    EXPECT_TRUE(mockSender.lastMessage.empty());
 }

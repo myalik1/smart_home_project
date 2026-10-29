@@ -82,7 +82,7 @@ float SmartPlug::getCurrentPower(){
     return currentPower;
 }
 
-void SmartPlug::setCurrentPower(float temp){
+void SmartPlug::setCurrentPower(float power){
     std::lock_guard<std::mutex> lock(stateMutex);
-    currentPower = temp;
+    currentPower = power;
 }

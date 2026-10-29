@@ -1,8 +1,8 @@
 #include "../include/ThermostatEmulator.h"
 #include <chrono>
 
-ThermostatEmulator::ThermostatEmulator(SmartThermostat* thermo, SmartRadiator* rad, float ambientTemp)
-    : thermostat(thermo), radiator(rad), roomBaseTemperature(ambientTemp), isRunning(false) {
+ThermostatEmulator::ThermostatEmulator(SmartThermostat* thermo, float ambientTemp)
+    : thermostat(thermo), roomBaseTemperature(ambientTemp), isRunning(false) {
     thermostat->updateCurrentTemperature(roomBaseTemperature);
 }
 
@@ -17,13 +17,15 @@ void ThermostatEmulator::start() {
     emuThread = std::thread([this]() {
         while (isRunning) {
             tick();
-            std::this_thread::sleep_for(std::chrono::seconds(2));
+            std::unique_lock<std::mutex> lock(cv_m);
+            cv.wait_for(lock, std::chrono::seconds(2), [this]() { return !isRunning.load(); });
         }
     });
 }
 
 void ThermostatEmulator::stop() {
     isRunning = false;
+    cv.notify_all();
     if (emuThread.joinable()) {
         emuThread.join();
     }
@@ -31,10 +33,9 @@ void ThermostatEmulator::stop() {
 
 void ThermostatEmulator::tick() {
     float currentTemp = thermostat->getCurrentTemperature();
-    int valveLevel = (radiator != nullptr) ? radiator->getCurrentValveLevel() : 0;
+    int valveLevel = thermostat->getRadiatorValveLevel();
 
     float heatGain = (valveLevel / 100.0f) * 0.5f;
-
     float heatLoss = (currentTemp > roomBaseTemperature) ? 0.1f : 0.0f;
 
     float nextTemp = currentTemp + heatGain - heatLoss;

@@ -16,13 +16,15 @@ void RadiatorEmulator::start() {
     emuThread = std::thread([this]() {
         while (isRunning) {
             tick();
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::unique_lock<std::mutex> lock(cv_m);
+            cv.wait_for(lock, std::chrono::seconds(1), [this]() { return !isRunning.load(); });
         }
     });
 }
 
 void RadiatorEmulator::stop() {
     isRunning = false;
+    cv.notify_all();
     if (emuThread.joinable()) {
         emuThread.join();
     }
