@@ -106,6 +106,81 @@ RuleAction IntervalTimer::getAction() const {
     return startAction_;
 }
 
+RuleAction IntervalTimer::getStartAction() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return startAction_;
+}
+
+RuleAction IntervalTimer::getEndAction() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return endAction_;
+}
+
+std::chrono::milliseconds IntervalTimer::getPeriodicInterval() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return periodicInterval_;
+}
+
+size_t IntervalTimer::getMaxTicks() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return maxTicks_;
+}
+
+int IntervalTimer::getStartHour() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return startHour_;
+}
+
+int IntervalTimer::getStartMin() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return startMin_;
+}
+
+int IntervalTimer::getStartSec() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return startSec_;
+}
+
+int IntervalTimer::getEndHour() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return endHour_;
+}
+
+int IntervalTimer::getEndMin() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return endMin_;
+}
+
+int IntervalTimer::getEndSec() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return endSec_;
+}
+
+bool IntervalTimer::isRepeatDaily() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return repeatDaily_;
+}
+
+bool IntervalTimer::isMaintainState() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return maintainState_;
+}
+
+std::chrono::seconds IntervalTimer::getMaintainInterval() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return maintainInterval_;
+}
+
+std::chrono::system_clock::time_point IntervalTimer::getWindowStart() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return windowStart_;
+}
+
+std::chrono::system_clock::time_point IntervalTimer::getWindowEnd() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return windowEnd_;
+}
+
 void IntervalTimer::reset() {
     std::lock_guard<std::mutex> lock(mutex_);
     insideWindow_ = false;

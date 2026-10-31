@@ -83,6 +83,15 @@ private:
     std::vector<StateListener> stateListeners_;
     std::vector<TelemetryListener> telemetryListeners_;
 
+    bool wildcardCollectionEnabled_ = false;
+    std::string wildcardTopic_;
+
+    struct LastStateMsgRecord {
+        std::string payload;
+        std::chrono::steady_clock::time_point timestamp;
+    };
+    std::unordered_map<std::string, LastStateMsgRecord> lastProcessedStateMap_;
+
     void setupDeviceSubscriptions(const std::shared_ptr<SmartDevice>& device);
     bool parseTelemetry(const std::string& payload, DeviceTelemetry& outTelemetry) const;
 };

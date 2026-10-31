@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <mutex>
 
 class SQLiteStorage : public IStorage {
 public:
@@ -39,6 +40,7 @@ public:
 private:
     sqlite3* db_;
     std::string lastError_;
+    mutable std::recursive_mutex dbMutex_;
 
     sqlite3_stmt* prepareStatement(const std::string& sql,
                                    const std::vector<std::string>& params);

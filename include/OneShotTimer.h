@@ -32,6 +32,10 @@ public:
 
     std::chrono::system_clock::time_point getTriggerTime() const;
     bool isRepeatDaily() const;
+    bool isTimeOfDayMode() const;
+    int getHour() const;
+    int getMinute() const;
+    int getSecond() const;
 
     void setCallback(TriggerCallback callback);
 

@@ -206,6 +206,11 @@ TEST_F(TimerCoverageTest, RejectsDuplicateTimerIdAndHandlesInvalidTimerGracefull
 
     // Duplicate ID must be rejected
     EXPECT_FALSE(ruleEngine->addTimer(std::make_shared<OneShotTimer>("unique_id", t0, RuleAction("Plug1", "{}"))));
+    EXPECT_EQ(ruleEngine->addPointTimer("unique_id", t0, RuleAction("Lamp1", "{}")), nullptr);
+    EXPECT_EQ(ruleEngine->addTimeOfDayTimer("unique_id", 12, 0, 0, RuleAction("Lamp1", "{}")), nullptr);
+    EXPECT_EQ(ruleEngine->addTimeWindowTimer("unique_id", t0, t0 + std::chrono::seconds(10), RuleAction("Lamp1", "{}"), RuleAction("Lamp1", "{}")), nullptr);
+    EXPECT_EQ(ruleEngine->addTimeOfDayIntervalTimer("unique_id", 9, 0, 0, 18, 0, 0, RuleAction("Lamp1", "{}"), RuleAction("Lamp1", "{}")), nullptr);
+    EXPECT_EQ(ruleEngine->addPeriodicTimer("unique_id", std::chrono::milliseconds(100), RuleAction("Lamp1", "{}")), nullptr);
     EXPECT_EQ(ruleEngine->getTimerCount(), 1u);
 
     // Null pointer must be rejected

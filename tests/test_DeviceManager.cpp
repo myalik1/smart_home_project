@@ -6,6 +6,7 @@
 #include "../include/SmartThermostat.h"
 #include "../include/SmartHygrometer.h"
 #include "../include/SmartRadiator.h"
+#include "../include/SQLiteStorage.h"
 #include "../include/json.hpp"
 #include "MockMqttClient.h"
 
@@ -169,7 +170,6 @@ TEST_F(DeviceManagerTest, PublishAllStates) {
     EXPECT_EQ(mockClient.sentMessages.size(), 2u);
 }
 
-
 TEST_F(DeviceManagerTest, ParsesTelemetryFromMultipleSimulators) {
     manager->registerDevice(lamp);
     manager->registerDevice(plug);
@@ -298,4 +298,31 @@ TEST_F(DeviceManagerTest, IgnoresInvalidOrBrokenJsonTelemetryGracefully) {
 
     mockClient.simulateIncomingMessage("home/lamp1", "[1, 2, 3]");
     EXPECT_FALSE(received);
+}
+
+TEST_F(DeviceManagerTest, WildcardAndDirectSubscriptionDoesNotDuplicateTelemetryOrHistory) {
+    manager->registerDevice(lamp);
+
+    auto storage = std::make_shared<SQLiteStorage>();
+    ASSERT_TRUE(storage->open(":memory:"));
+    manager->attachStorage(storage);
+
+    // Enable wildcard while device is already registered
+    manager->enableWildcardCollection("home/#");
+
+    int telemetryCallbacksFired = 0;
+    manager->onTelemetryReceived([&](const DeviceTelemetry&) {
+        telemetryCallbacksFired++;
+    });
+
+    const std::string payload = R"({"deviceName":"Lamp1","deviceType":"Lamp","isOn":true,"brightness":70})";
+
+    // Simulate incoming message that matches both home/lamp1 and home/#
+    mockClient.simulateIncomingMessage("home/lamp1", payload);
+
+    // Must be delivered exactly once despite matching both subscriptions
+    EXPECT_EQ(telemetryCallbacksFired, 1);
+
+    auto history = manager->getDeviceHistory("Lamp1");
+    EXPECT_EQ(history.size(), 1u);
 }

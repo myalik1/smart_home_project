@@ -152,3 +152,88 @@ TEST_F(RuleConfigParserTest, ExportToJsonAndFileRoundTrip) {
     std::error_code ec;
     std::filesystem::remove(tmpFile, ec);
 }
+
+TEST_F(RuleConfigParserTest, ExportPreservesDynamicTimerValuesWithoutHardcoding) {
+    // 1. Time of day point timer
+    ruleEngine->addTimeOfDayTimer("tod_timer", 14, 30, 45,
+                                  RuleAction("Lamp1", R"({"command":"ON"})"), true);
+
+    // 2. Time window with distinct startAction and endAction
+    ruleEngine->addTimeOfDayIntervalTimer("window_timer",
+                                          10, 15, 20, 19, 45, 50,
+                                          RuleAction("Lamp1", R"({"command":"ON"})"),
+                                          RuleAction("Lamp1", R"({"command":"OFF"})"),
+                                          true, true, std::chrono::seconds(45));
+
+    // 3. Periodic timer with custom interval and maxTicks
+    ruleEngine->addPeriodicTimer("periodic_timer",
+                                 std::chrono::milliseconds(350),
+                                 RuleAction("Lamp1", R"({"command":"PING"})"),
+                                 7);
+
+    std::string exportedJson = parser.exportToJson(*ruleEngine);
+    auto root = nlohmann::json::parse(exportedJson);
+    ASSERT_TRUE(root.contains("rules"));
+    ASSERT_EQ(root["rules"].size(), 3u);
+
+    // Verify round-trip into clean engine
+    RuleEngine roundTripEngine(deviceManager.get());
+    EXPECT_TRUE(parser.loadFromString(exportedJson, roundTripEngine));
+    EXPECT_EQ(roundTripEngine.getTimerCount(), 3u);
+
+    auto windowTimer = std::dynamic_pointer_cast<IntervalTimer>(roundTripEngine.getTimer("window_timer"));
+    ASSERT_NE(windowTimer, nullptr);
+    EXPECT_EQ(windowTimer->getStartHour(), 10);
+    EXPECT_EQ(windowTimer->getStartMin(), 15);
+    EXPECT_EQ(windowTimer->getStartSec(), 20);
+    EXPECT_EQ(windowTimer->getEndHour(), 19);
+    EXPECT_EQ(windowTimer->getEndMin(), 45);
+    EXPECT_EQ(windowTimer->getEndSec(), 50);
+    EXPECT_EQ(windowTimer->getStartAction().commandJson, R"({"command":"ON"})");
+    EXPECT_EQ(windowTimer->getEndAction().commandJson, R"({"command":"OFF"})");
+    EXPECT_TRUE(windowTimer->isMaintainState());
+    EXPECT_EQ(windowTimer->getMaintainInterval().count(), 45);
+
+    auto periodic = std::dynamic_pointer_cast<IntervalTimer>(roundTripEngine.getTimer("periodic_timer"));
+    ASSERT_NE(periodic, nullptr);
+    EXPECT_EQ(periodic->getPeriodicInterval().count(), 350);
+    EXPECT_EQ(periodic->getMaxTicks(), 7u);
+}
+
+TEST_F(RuleConfigParserTest, GracefullyHandlesInvalidTypesInsideRuleObjects) {
+    const std::string badTypesJson = R"({
+        "rules": [
+            {
+                "id": "bad_ts_string",
+                "type": "point_absolute",
+                "timestamp": "this_is_not_a_number",
+                "action": {"device": "Lamp1", "command": {"command": "ON"}}
+            },
+            {
+                "id": "bad_start_time_number",
+                "type": "time_window",
+                "startTime": 12345,
+                "endTime": "18:00:00",
+                "startAction": {"device": "Lamp1", "command": {"command": "ON"}},
+                "endAction": {"device": "Lamp1", "command": {"command": "OFF"}}
+            },
+            {
+                "id": "good_timer",
+                "type": "point",
+                "time": "12:00:00",
+                "action": {"device": "Lamp1", "command": {"command": "ON"}}
+            }
+        ]
+    })";
+
+    EXPECT_NO_THROW({
+        bool ok = parser.loadFromString(badTypesJson, *ruleEngine);
+        EXPECT_TRUE(ok);
+    });
+
+    // Only good_timer should be loaded, bad ones safely skipped
+    EXPECT_EQ(parser.getLastLoadedCount(), 1u);
+    EXPECT_TRUE(ruleEngine->hasTimer("good_timer"));
+    EXPECT_FALSE(ruleEngine->hasTimer("bad_ts_string"));
+    EXPECT_FALSE(ruleEngine->hasTimer("bad_start_time_number"));
+}

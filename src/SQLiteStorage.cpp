@@ -7,13 +7,16 @@ SQLiteStorage::~SQLiteStorage() {
     close();
 }
 
-SQLiteStorage::SQLiteStorage(SQLiteStorage&& other) noexcept
-    : db_(other.db_), lastError_(std::move(other.lastError_)) {
+SQLiteStorage::SQLiteStorage(SQLiteStorage&& other) noexcept {
+    std::lock_guard<std::recursive_mutex> lock(other.dbMutex_);
+    db_ = other.db_;
+    lastError_ = std::move(other.lastError_);
     other.db_ = nullptr;
 }
 
 SQLiteStorage& SQLiteStorage::operator=(SQLiteStorage&& other) noexcept {
     if (this != &other) {
+        std::scoped_lock lock(dbMutex_, other.dbMutex_);
         close();
         db_ = other.db_;
         lastError_ = std::move(other.lastError_);
@@ -23,6 +26,7 @@ SQLiteStorage& SQLiteStorage::operator=(SQLiteStorage&& other) noexcept {
 }
 
 bool SQLiteStorage::open(const std::string& connectionString) {
+    std::lock_guard<std::recursive_mutex> lock(dbMutex_);
     if (db_) {
         close();
     }
@@ -42,6 +46,7 @@ bool SQLiteStorage::open(const std::string& connectionString) {
 }
 
 void SQLiteStorage::close() {
+    std::lock_guard<std::recursive_mutex> lock(dbMutex_);
     if (db_) {
         sqlite3_close(db_);
         db_ = nullptr;
@@ -49,10 +54,12 @@ void SQLiteStorage::close() {
 }
 
 bool SQLiteStorage::isOpen() const {
+    std::lock_guard<std::recursive_mutex> lock(dbMutex_);
     return db_ != nullptr;
 }
 
 bool SQLiteStorage::execute(const std::string& sql) {
+    std::lock_guard<std::recursive_mutex> lock(dbMutex_);
     if (!db_) {
         lastError_ = "Database is not open";
         return false;
@@ -76,6 +83,7 @@ IStorage::QueryResult SQLiteStorage::query(const std::string& sql) {
 
 bool SQLiteStorage::execute(const std::string& sql,
                             const std::vector<std::string>& params) {
+    std::lock_guard<std::recursive_mutex> lock(dbMutex_);
     sqlite3_stmt* stmt = prepareStatement(sql, params);
     if (!stmt) {
         return false;
@@ -94,6 +102,7 @@ bool SQLiteStorage::execute(const std::string& sql,
 
 IStorage::QueryResult SQLiteStorage::query(const std::string& sql,
                                            const std::vector<std::string>& params) {
+    std::lock_guard<std::recursive_mutex> lock(dbMutex_);
     sqlite3_stmt* stmt = prepareStatement(sql, params);
     if (!stmt) {
         return {};
@@ -117,6 +126,7 @@ bool SQLiteStorage::rollbackTransaction() {
 }
 
 std::string SQLiteStorage::getLastError() const {
+    std::lock_guard<std::recursive_mutex> lock(dbMutex_);
     return lastError_;
 }
 

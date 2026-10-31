@@ -108,6 +108,26 @@ bool OneShotTimer::isRepeatDaily() const {
     return repeatDaily_;
 }
 
+bool OneShotTimer::isTimeOfDayMode() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return isTimeOfDayMode_;
+}
+
+int OneShotTimer::getHour() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return hour_;
+}
+
+int OneShotTimer::getMinute() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return minute_;
+}
+
+int OneShotTimer::getSecond() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return second_;
+}
+
 void OneShotTimer::setCallback(TriggerCallback callback) {
     std::lock_guard<std::mutex> lock(mutex_);
     callback_ = std::move(callback);

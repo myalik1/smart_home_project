@@ -56,6 +56,22 @@ public:
     bool isInsideWindow() const;
     size_t getTickCount() const;
 
+    RuleAction getStartAction() const;
+    RuleAction getEndAction() const;
+    std::chrono::milliseconds getPeriodicInterval() const;
+    size_t getMaxTicks() const;
+    int getStartHour() const;
+    int getStartMin() const;
+    int getStartSec() const;
+    int getEndHour() const;
+    int getEndMin() const;
+    int getEndSec() const;
+    bool isRepeatDaily() const;
+    bool isMaintainState() const;
+    std::chrono::seconds getMaintainInterval() const;
+    std::chrono::system_clock::time_point getWindowStart() const;
+    std::chrono::system_clock::time_point getWindowEnd() const;
+
     void setCallback(TriggerCallback callback);
 
     // Helper method to check if a time is within a daily [start, end] window

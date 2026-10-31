@@ -65,6 +65,9 @@ std::shared_ptr<OneShotTimer> RuleEngine::addPointTimer(
         });
 
     std::lock_guard<std::mutex> lock(mutex_);
+    if (timers_.find(timerId) != timers_.end()) {
+        return nullptr;
+    }
     timers_[timerId] = timer;
     return timer;
 }
@@ -82,6 +85,9 @@ std::shared_ptr<OneShotTimer> RuleEngine::addTimeOfDayTimer(
         });
 
     std::lock_guard<std::mutex> lock(mutex_);
+    if (timers_.find(timerId) != timers_.end()) {
+        return nullptr;
+    }
     timers_[timerId] = timer;
     return timer;
 }
@@ -103,6 +109,9 @@ std::shared_ptr<IntervalTimer> RuleEngine::addTimeWindowTimer(
         });
 
     std::lock_guard<std::mutex> lock(mutex_);
+    if (timers_.find(timerId) != timers_.end()) {
+        return nullptr;
+    }
     timers_[timerId] = timer;
     return timer;
 }
@@ -127,6 +136,9 @@ std::shared_ptr<IntervalTimer> RuleEngine::addTimeOfDayIntervalTimer(
         });
 
     std::lock_guard<std::mutex> lock(mutex_);
+    if (timers_.find(timerId) != timers_.end()) {
+        return nullptr;
+    }
     timers_[timerId] = timer;
     return timer;
 }
@@ -144,6 +156,9 @@ std::shared_ptr<IntervalTimer> RuleEngine::addPeriodicTimer(
         });
 
     std::lock_guard<std::mutex> lock(mutex_);
+    if (timers_.find(timerId) != timers_.end()) {
+        return nullptr;
+    }
     timers_[timerId] = timer;
     return timer;
 }

@@ -309,6 +309,9 @@ void DeviceManager::onTelemetryReceived(TelemetryListener listener) {
 
 void DeviceManager::enableWildcardCollection(const std::string& rootTopic) {
     std::lock_guard<std::mutex> lock(mutex_);
+    wildcardCollectionEnabled_ = true;
+    wildcardTopic_ = rootTopic;
+
     if (!mqttClient_) {
         return;
     }
@@ -353,6 +356,11 @@ bool DeviceManager::parseTelemetry(const std::string& payload, DeviceTelemetry& 
         if (j.contains("currentHumidity") && j["currentHumidity"].is_number()) {
             outTelemetry.currentHumidity = j["currentHumidity"].get<float>();
             outTelemetry.numericMetrics["currentHumidity"] = outTelemetry.currentHumidity;
+            outTelemetry.numericMetrics["humidity"] = outTelemetry.currentHumidity;
+        } else if (j.contains("humidity") && j["humidity"].is_number()) {
+            outTelemetry.currentHumidity = j["humidity"].get<float>();
+            outTelemetry.numericMetrics["currentHumidity"] = outTelemetry.currentHumidity;
+            outTelemetry.numericMetrics["humidity"] = outTelemetry.currentHumidity;
         }
         if (j.contains("currentPower") && j["currentPower"].is_number()) {
             outTelemetry.currentPower = j["currentPower"].get<float>();
@@ -365,14 +373,18 @@ bool DeviceManager::parseTelemetry(const std::string& payload, DeviceTelemetry& 
         if (j.contains("valveLevel") && j["valveLevel"].is_number()) {
             outTelemetry.valveLevel = j["valveLevel"].get<int>();
             outTelemetry.numericMetrics["valveLevel"] = outTelemetry.valveLevel;
+            outTelemetry.targetValveLevel = outTelemetry.valveLevel;
+            outTelemetry.currentValveLevel = outTelemetry.valveLevel;
         }
         if (j.contains("targetValveLevel") && j["targetValveLevel"].is_number()) {
             outTelemetry.targetValveLevel = j["targetValveLevel"].get<int>();
             outTelemetry.numericMetrics["targetValveLevel"] = outTelemetry.targetValveLevel;
+            if (outTelemetry.valveLevel == 0) outTelemetry.valveLevel = outTelemetry.targetValveLevel;
         }
         if (j.contains("currentValveLevel") && j["currentValveLevel"].is_number()) {
             outTelemetry.currentValveLevel = j["currentValveLevel"].get<int>();
             outTelemetry.numericMetrics["currentValveLevel"] = outTelemetry.currentValveLevel;
+            if (outTelemetry.valveLevel == 0) outTelemetry.valveLevel = outTelemetry.currentValveLevel;
         }
         if (j.contains("mode") && j["mode"].is_string()) {
             outTelemetry.mode = j["mode"].get<std::string>();
@@ -417,6 +429,17 @@ void DeviceManager::handleIncomingMessage(const std::string& topic, const std::s
                 targetDevice = itCmd->second;
             }
         } else {
+            // Deduplication: if duplicate state message on the same topic arrives within 100ms, ignore it
+            auto now = std::chrono::steady_clock::now();
+            auto itLast = lastProcessedStateMap_.find(topic);
+            if (itLast != lastProcessedStateMap_.end()) {
+                if (itLast->second.payload == payload &&
+                    std::chrono::duration_cast<std::chrono::milliseconds>(now - itLast->second.timestamp).count() < 100) {
+                    return;
+                }
+            }
+            lastProcessedStateMap_[topic] = {payload, now};
+
             // It's a state / telemetry message
             auto itState = stateTopicToNameMap_.find(topic);
             if (itState != stateTopicToNameMap_.end()) {
@@ -486,7 +509,9 @@ void DeviceManager::setupDeviceSubscriptions(const std::shared_ptr<SmartDevice>&
         this->handleIncomingMessage(topic, payload);
     });
 
-    mqttClient_->subscribe(baseTopic, [this](const std::string& topic, const std::string& payload) {
-        this->handleIncomingMessage(topic, payload);
-    });
+    if (!wildcardCollectionEnabled_) {
+        mqttClient_->subscribe(baseTopic, [this](const std::string& topic, const std::string& payload) {
+            this->handleIncomingMessage(topic, payload);
+        });
+    }
 }

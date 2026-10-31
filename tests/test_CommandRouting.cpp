@@ -290,7 +290,7 @@ TEST_F(CommandRoutingTest, RuleEngineStateMaintenancePeriodicRouting) {
 }
 
 TEST_F(CommandRoutingTest, RuleEnginePeriodicTimerRoutesRecurringCommands) {
-    RuleAction action("Rad1", R"({"command": "UPDATE_CURRENT_TEMP", "value": 19.5})");
+    RuleAction action("Rad1", R"({"command": "SET_VALVE_LEVEL", "value": 50})");
     auto timer = ruleEngine->addPeriodicTimer(
         "rad_heartbeat", std::chrono::milliseconds(100), action, /*maxTicks=*/3);
 
@@ -318,7 +318,7 @@ TEST_F(CommandRoutingTest, RuleEnginePeriodicTimerRoutesRecurringCommands) {
 
     for (const auto& msg : mockClient.sentMessages) {
         EXPECT_EQ(msg.topic, "home/rad1/set");
-        EXPECT_EQ(msg.payload, R"({"command": "UPDATE_CURRENT_TEMP", "value": 19.5})");
+        EXPECT_EQ(msg.payload, R"({"command": "SET_VALVE_LEVEL", "value": 50})");
     }
 }
 
@@ -496,16 +496,10 @@ TEST_F(CommandRoutingTest, ConfigParserToRuleEngineToDeviceRoutingFullPipeline) 
     EXPECT_EQ(parser.getLastLoadedCount(), 2u);
     EXPECT_EQ(ruleEngine->getTimerCount(), 2u);
 
-    // Construct local test day 2026-10-28
-    std::tm timeInfo = {};
-    timeInfo.tm_year = 2026 - 1900;
-    timeInfo.tm_mon = 9;
-    timeInfo.tm_mday = 28;
-
-    timeInfo.tm_hour = 7;
-    timeInfo.tm_min = 30;
-    timeInfo.tm_sec = 0;
-    auto tMorning = std::chrono::system_clock::from_time_t(std::mktime(&timeInfo));
+    // Get computed trigger time for morning_lamp
+    auto morningTimer = std::dynamic_pointer_cast<OneShotTimer>(ruleEngine->getTimer("morning_lamp"));
+    ASSERT_NE(morningTimer, nullptr);
+    auto tMorning = morningTimer->getTriggerTime();
 
     // Tick at 07:30:00 -> morning_lamp should fire and route to home/lamp1/set
     ruleEngine->tick(tMorning);
@@ -513,7 +507,14 @@ TEST_F(CommandRoutingTest, ConfigParserToRuleEngineToDeviceRoutingFullPipeline) 
     EXPECT_EQ(mockClient.sentMessages[0].topic, "home/lamp1/set");
     EXPECT_EQ(mockClient.sentMessages[0].payload, R"({"command": "ON"})");
 
-    // Tick at 09:00:00 -> work_plug_window start action routes to home/plug1/set
+    // Construct 09:00:00 and 18:00:00 for the interval timer day
+    std::time_t nowT = std::chrono::system_clock::to_time_t(tMorning);
+    std::tm timeInfo = {};
+#if defined(_WIN32)
+    localtime_s(&timeInfo, &nowT);
+#else
+    localtime_r(&nowT, &timeInfo);
+#endif
     timeInfo.tm_hour = 9;
     timeInfo.tm_min = 0;
     timeInfo.tm_sec = 0;
