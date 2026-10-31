@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(PahoMqttCpp REQUIRED)
+find_package(SQLite3 REQUIRED)
+find_package(Threads REQUIRED)
 
 include_directories(include)
 
@@ -28,34 +30,40 @@ add_executable(SmartHomeApp
     src/SmartHygrometer.cpp
     src/SmartRadiator.cpp
     src/MqttMessageSender.cpp
+    src/SQLiteStorage.cpp
+    src/TelemetryHistoryManager.cpp
+    src/DeviceManager.cpp
+    src/OneShotTimer.cpp
+    src/IntervalTimer.cpp
+    src/RuleEngine.cpp
+    src/RuleConfigParser.cpp
 )
-target_link_libraries(SmartHomeApp PRIVATE paho-mqttpp3 paho-mqtt3as)
+target_link_libraries(SmartHomeApp PRIVATE paho-mqttpp3 paho-mqtt3as SQLite::SQLite3 Threads::Threads)
 
 # 1. Приложение Термостата
 add_executable(app_thermostat apps/app_thermostat.cpp ${CORE_SOURCES})
-target_link_libraries(app_thermostat PRIVATE paho-mqttpp3 paho-mqtt3as pthread)
+target_link_libraries(app_thermostat PRIVATE paho-mqttpp3 paho-mqtt3as Threads::Threads)
 
 # 2. Приложение Радиатора
 add_executable(app_radiator apps/app_radiator.cpp ${CORE_SOURCES})
-target_link_libraries(app_radiator PRIVATE paho-mqttpp3 paho-mqtt3as pthread)
+target_link_libraries(app_radiator PRIVATE paho-mqttpp3 paho-mqtt3as Threads::Threads)
 
 # 3. Приложение Розетки
 add_executable(app_plug apps/app_plug.cpp ${CORE_SOURCES})
-target_link_libraries(app_plug PRIVATE paho-mqttpp3 paho-mqtt3as pthread)
+target_link_libraries(app_plug PRIVATE paho-mqttpp3 paho-mqtt3as Threads::Threads)
 
 # 4. Приложение Гигрометра
 add_executable(app_hygrometer apps/app_hygrometer.cpp ${CORE_SOURCES})
-target_link_libraries(app_hygrometer PRIVATE paho-mqttpp3 paho-mqtt3as pthread)
+target_link_libraries(app_hygrometer PRIVATE paho-mqttpp3 paho-mqtt3as Threads::Threads)
 
 # 5. Приложение Лампы
 add_executable(app_lamp apps/app_lamp.cpp ${CORE_SOURCES})
-target_link_libraries(app_lamp PRIVATE paho-mqttpp3 paho-mqtt3as pthread)
+target_link_libraries(app_lamp PRIVATE paho-mqttpp3 paho-mqtt3as Threads::Threads)
 
 # Временный тест MQTT (можно удалить позже)
 add_executable(mqtt_test mqtt_test.cpp)
 target_link_libraries(mqtt_test PRIVATE paho-mqttpp3 paho-mqtt3as)
-
-# Тесты (от коллег из feature/smart-device)
+    
 enable_testing()
 
 include(FetchContent)
@@ -78,6 +86,13 @@ add_executable(smart_home_tests
     tests/test_PlugEmulator.cpp
     tests/test_RadiatorEmulator.cpp
     tests/test_ThermostatEmulator.cpp
+    tests/test_SQLiteStorage.cpp
+    tests/test_DeviceManager.cpp
+    tests/test_TelemetryHistory.cpp
+    tests/test_RuleEngine.cpp
+    tests/test_RuleConfigParser.cpp
+    tests/test_TimerCoverage.cpp
+    tests/test_CommandRouting.cpp
     src/SmartLamp.cpp
     src/SmartThermostat.cpp
     src/SmartPlug.cpp
@@ -88,9 +103,16 @@ add_executable(smart_home_tests
     src/RadiatorEmulator.cpp
     src/HygrometerEmulator.cpp
     src/ThermostatEmulator.cpp
+    src/SQLiteStorage.cpp
+    src/TelemetryHistoryManager.cpp
+    src/DeviceManager.cpp
+    src/OneShotTimer.cpp
+    src/IntervalTimer.cpp
+    src/RuleEngine.cpp
+    src/RuleConfigParser.cpp
 )
 
-target_link_libraries(smart_home_tests gtest_main)
+target_link_libraries(smart_home_tests gtest_main SQLite::SQLite3 Threads::Threads)
 
 include(GoogleTest)
 gtest_discover_tests(smart_home_tests)

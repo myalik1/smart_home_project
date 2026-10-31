@@ -16,6 +16,11 @@ public:
     // Processes incoming command strings
     virtual void onMessageReceived(const std::string& message) = 0;
 
+    const std::string& getName() const { return deviceName; }
+    const std::string& getSerialNumber() const { return serialNumber; }
+    const std::string& getTopic() const { return mqttTopic; }
+    const std::string& getType() const { return deviceType; }
+
 protected:
     std::string deviceName;
     std::string serialNumber;
