@@ -29,15 +29,13 @@ TEST_F(SmartLampTest, TurnsOnAndSendsStatus) {
 }
 
 TEST_F(SmartLampTest, ClampsBrightness) {
-    lamp->onMessageReceived(R"({"command": "SET_BRIGHTNESS", "value": 50})");
+    lamp->onMessageReceived(R"({"command": "SET_BRIGHTNESS", "value": -20})");
+    json resultLow = json::parse(mockSender.lastMessage);
+    EXPECT_EQ(resultLow["brightness"], 0);
 
     lamp->onMessageReceived(R"({"command": "SET_BRIGHTNESS", "value": 150})");
     json resultHigh = json::parse(mockSender.lastMessage);
     EXPECT_EQ(resultHigh["brightness"], 100);
-
-    lamp->onMessageReceived(R"({"command": "SET_BRIGHTNESS", "value": -20})");
-    json resultLow = json::parse(mockSender.lastMessage);
-    EXPECT_EQ(resultLow["brightness"], 0);
 }
 
 TEST_F(SmartLampTest, IgnoresInvalidJson) {
