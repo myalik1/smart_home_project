@@ -1,56 +1,54 @@
-# Prerequisites
-*.d
-
 # Compiled Object files
 *.slo
 *.lo
-*.o
 *.obj
+*.o
 
 # Precompiled Headers
 *.gch
 *.pch
 
-# Linker files
+# Linker / Debugger files
 *.ilk
-
-# Debugger Files
 *.pdb
+*.dwo
 
-# Compiled Dynamic libraries
+# Compiled Dynamic & Static libraries
 *.so
 *.dylib
 *.dll
 *.so.*
-
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
 *.lai
 *.la
-*.a
 *.lib
+*.a
 
 # Executables
 *.exe
 *.out
 *.app
 
-# Build directories
+# Build directories & CMake generated files
 build/
 Build/
 build-*/
-
-# CMake generated files
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 Makefile
 install_manifest.txt
 compile_commands.json
+Testing/
+.cache/
+vcpkg_installed/
+
+# Coverage artifacts
+*.gcno
+*.gcda
+*.gcov
+coverage.info
+filtered*.info
+final_coverage.info
 
 # Temporary files
 *.tmp
@@ -58,14 +56,17 @@ compile_commands.json
 *.bak
 *.swp
 
-# vcpkg
-vcpkg_installed/
+# Python & FastAPI Gateway
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+.env
 
-# debug information files
-*.dwo
-
-# test output & cache
-Testing/
-.cache/
-
-echo ".venv/" >> .gitignore
+# SQLite databases (keep data/ folder via .gitkeep)
+*.db
+*.db-shm
+*.db-wal
