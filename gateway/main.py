@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from gateway.config import settings
+from gateway.mqtt_service import mqtt_service
 
 
 @asynccontextmanager
@@ -15,7 +16,11 @@ async def lifespan(app: FastAPI):
             json.dumps({"rules": []}, indent=2), encoding="utf-8"
         )
 
+    mqtt_service.start()
+
     yield
+
+    mqtt_service.stop()
 
 
 app = FastAPI(
@@ -37,6 +42,9 @@ app.add_middleware(
 @app.get("/health", tags=["System"])
 @app.get("/api/v1/health", tags=["System"])
 async def health_check():
+    devices = mqtt_service.get_all_devices()
+    online_devices = [d.deviceName for d in devices if d.isOnline]
+
     return {
         "status": "ok",
         "service": settings.app_name,
@@ -45,7 +53,8 @@ async def health_check():
         "sqlite_db_path": str(settings.db_full_path),
         "sqlite_db_exists": settings.db_full_path.exists(),
         "rules_config_path": str(settings.rules_full_path),
-        "registered_default_devices": list(settings.default_device_topics.keys()),
+        "registered_devices_count": len(devices),
+        "online_devices": online_devices,
     }
 
 

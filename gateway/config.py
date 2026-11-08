@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     mqtt_broker_port: int = 1883
     mqtt_client_id: str = "smart_home_api_gateway"
     mqtt_topic_prefix: str = "home"
+    device_online_timeout_sec: int = 10
 
     # Path to data/
     sqlite_db_path: str = "data/smart_home.db"
@@ -30,6 +31,14 @@ class Settings(BaseSettings):
         "Rad1": "home/radiator1",
         "Therm1": "home/therm1",
         "Hygro1": "home/hygro1",
+    }
+
+    default_device_types: Dict[str, str] = {
+        "Lamp1": "Lamp",
+        "Plug1": "Plug",
+        "Rad1": "Radiator",
+        "Therm1": "Thermostat",
+        "Hygro1": "Hygrometer",
     }
 
     model_config = SettingsConfigDict(
