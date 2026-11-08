@@ -24,6 +24,7 @@ class CachedDeviceState:
     device_name: str
     device_type: str
     topic: str
+    is_online: bool = False
     last_seen_ms: Optional[int] = None
     telemetry: Optional[DeviceTelemetrySchema] = None
 
@@ -59,8 +60,37 @@ class MqttGatewayService:
                     device_name=name,
                     device_type=dev_type,
                     topic=topic,
+                    is_online=False,
                 )
                 self._topic_to_name[topic] = name
+
+    def preload_from_db(self, latest_records: Dict[str, DeviceTelemetrySchema]) -> int:
+        loaded_count = 0
+        with self._lock:
+            for dev_name, telemetry in latest_records.items():
+                existing = self._devices.get(dev_name)
+                if existing:
+                    if existing.is_online:
+                        continue
+                    if telemetry.deviceType and telemetry.deviceType != "Unknown":
+                        existing.device_type = telemetry.deviceType
+                    existing.telemetry = telemetry
+                    existing.last_seen_ms = telemetry.timestamp
+                else:
+                    topic = settings.default_device_topics.get(
+                        dev_name, f"{settings.mqtt_topic_prefix}/{dev_name.lower()}"
+                    )
+                    self._devices[dev_name] = CachedDeviceState(
+                        device_name=dev_name,
+                        device_type=telemetry.deviceType or "Unknown",
+                        topic=topic,
+                        is_online=False,
+                        last_seen_ms=telemetry.timestamp,
+                        telemetry=telemetry,
+                    )
+                    self._topic_to_name[topic] = dev_name
+                loaded_count += 1
+        return loaded_count
 
     @property
     def is_connected(self) -> bool:
@@ -159,6 +189,7 @@ class MqttGatewayService:
                 device_name=dev_name,
                 device_type=dev_type,
                 topic=topic,
+                is_online=True,
                 last_seen_ms=telemetry.timestamp,
                 telemetry=telemetry,
             )
@@ -183,7 +214,7 @@ class MqttGatewayService:
                         deviceName=state.device_name,
                         deviceType=state.device_type,
                         topic=state.topic,
-                        isOnline=is_online,
+                        isOnline=state.is_online,
                         lastSeenMs=state.last_seen_ms,
                         telemetry=state.telemetry,
                     )
@@ -199,7 +230,7 @@ class MqttGatewayService:
                 deviceName=state.device_name,
                 deviceType=state.device_type,
                 topic=state.topic,
-                isOnline=(state.last_seen_ms is not None),
+                isOnline=state.is_online,
                 lastSeenMs=state.last_seen_ms,
                 telemetry=state.telemetry,
             )
