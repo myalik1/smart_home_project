@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from gateway.config import settings
 from gateway.mqtt_service import mqtt_service
 from gateway.db_service import db_service
+from gateway.routers import api_router
 
 
 @asynccontextmanager
@@ -44,6 +45,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(api_router)
 
 @app.get("/health", tags=["System"])
 @app.get("/api/v1/health", tags=["System"])
