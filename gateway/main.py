@@ -72,6 +72,7 @@ async def health_check():
         "rules_config_path": str(settings.rules_full_path),
         "registered_devices_count": len(devices),
         "online_devices": online_devices,
+        "active_ws_clients": ws_manager.active_connections_count,
     }
 
 
