@@ -7,6 +7,7 @@ from gateway.schemas import (
     DeviceTelemetrySchema,
     RuleActionSchema,
     RuleItemSchema,
+    RuleTypeEnum,
     ThermostatModeEnum,
 )
 
@@ -74,7 +75,7 @@ def test_rule_action_requires_device_or_topic() -> None:
 
     rule = RuleItemSchema(
         id="rule_1",
-        type="point",
+        type=RuleTypeEnum.POINT,
         time="08:00:00",
         action=RuleActionSchema(device="Lamp1", command={"command": "ON"}),
     )

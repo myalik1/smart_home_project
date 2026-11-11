@@ -2,7 +2,7 @@ import json
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Generator
+from typing import Callable, Generator
 
 import paho.mqtt.client as mqtt
 import pytest
@@ -58,7 +58,7 @@ def client() -> Generator[TestClient, None, None]:
 
 
 @pytest.fixture()
-def seed_telemetry_db() -> callable:
+def seed_telemetry_db() -> Callable[..., None]:
     """Вспомогательная фабрика для вставки тестовых строк в SQLite (имитация записи от C++ ядра)."""
     def _insert(
         device_name: str = "Therm1",

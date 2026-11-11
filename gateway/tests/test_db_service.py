@@ -33,6 +33,7 @@ def test_preload_from_db_keeps_devices_offline_until_live_mqtt(seed_telemetry_db
     # После предзагрузки из БД данные доступны, но isOnline=False
     therm_before = test_mqtt.get_device("Therm1")
     assert therm_before is not None
+    assert therm_before.telemetry is not None
     assert therm_before.isOnline is False
     assert therm_before.lastSeenMs == 5000
     assert therm_before.telemetry.currentTemperature == 23.4
@@ -43,5 +44,7 @@ def test_preload_from_db_keeps_devices_offline_until_live_mqtt(seed_telemetry_db
         {"deviceName": "Therm1", "deviceType": "Thermostat", "currentTemperature": 24.1},
     )
     therm_after = test_mqtt.get_device("Therm1")
+    assert therm_after is not None
+    assert therm_after.telemetry is not None
     assert therm_after.isOnline is True
     assert therm_after.telemetry.currentTemperature == 24.1
