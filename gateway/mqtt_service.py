@@ -127,7 +127,8 @@ class MqttGatewayService:
 
     def add_telemetry_listener(self, callback: TelemetryCallback) -> None:
         with self._lock:
-            self._listeners.append(callback)
+            if callback not in self._listeners:
+                self._listeners.append(callback)
 
     def _on_connect(self, client: mqtt.Client, userdata, flags, reason_code, properties) -> None:
         if reason_code == 0:

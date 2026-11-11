@@ -1,3 +1,4 @@
+import asyncio
 import json
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -7,6 +8,8 @@ from gateway.config import settings
 from gateway.mqtt_service import mqtt_service
 from gateway.db_service import db_service
 from gateway.routers import api_router
+from gateway.routers.ws import router as ws_router
+from gateway.ws_manager import ws_manager
 
 
 @asynccontextmanager
@@ -22,6 +25,9 @@ async def lifespan(app: FastAPI):
     latest_db_states = db_service.get_latest_for_all_devices()
     if latest_db_states:
         mqtt_service.preload_from_db(latest_db_states)
+
+    ws_manager.set_event_loop(asyncio.get_running_loop())
+    mqtt_service.add_telemetry_listener(ws_manager.on_mqtt_telemetry)
 
     mqtt_service.start()
 
@@ -46,6 +52,7 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
+app.include_router(ws_router)
 
 @app.get("/health", tags=["System"])
 @app.get("/api/v1/health", tags=["System"])
