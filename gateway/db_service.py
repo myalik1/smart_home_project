@@ -2,6 +2,7 @@ import logging
 import sqlite3
 from pathlib import Path
 from typing import Dict, List, Optional
+from contextlib import closing
 
 from gateway.config import settings
 from gateway.schemas import DeviceTelemetrySchema
@@ -47,18 +48,19 @@ class TelemetryDatabaseService:
         );
         """
         try:
-            with self._get_connection() as conn:
-                conn.execute(create_table_sql)
-                conn.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_telemetry_dev ON telemetry_history(device_name);"
-                )
-                conn.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_telemetry_time ON telemetry_history(timestamp);"
-                )
-                conn.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_telemetry_dev_time ON telemetry_history(device_name, timestamp);"
-                )
-                conn.commit()
+            with closing(self._get_connection()) as conn:
+                with conn:
+                    conn.execute(create_table_sql)
+                    conn.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_telemetry_dev ON telemetry_history(device_name);"
+                    )
+                    conn.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_telemetry_time ON telemetry_history(timestamp);"
+                    )
+                    conn.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_telemetry_dev_time ON telemetry_history(device_name, timestamp);"
+                    )
+                    conn.commit()
             return True
         except sqlite3.Error as exc:
             logger.error("Failed to initialize SQLite schema at '%s': %s", self.db_path, exc)
@@ -75,7 +77,7 @@ class TelemetryDatabaseService:
         LIMIT ?;
         """
         try:
-            with self._get_connection() as conn:
+            with closing(self._get_connection()) as conn:
                 cursor = conn.execute(sql, (device_name, limit))
                 rows = cursor.fetchall()
             return [DeviceTelemetrySchema.from_sqlite_row(dict(row)) for row in rows]
@@ -93,7 +95,7 @@ class TelemetryDatabaseService:
         LIMIT ?;
         """
         try:
-            with self._get_connection() as conn:
+            with closing(self._get_connection()) as conn:
                 cursor = conn.execute(sql, (limit,))
                 rows = cursor.fetchall()
             return [DeviceTelemetrySchema.from_sqlite_row(dict(row)) for row in rows]
@@ -123,7 +125,7 @@ class TelemetryDatabaseService:
             sql += ";"
 
         try:
-            with self._get_connection() as conn:
+            with closing(self._get_connection()) as conn:
                 cursor = conn.execute(sql, tuple(params))
                 rows = cursor.fetchall()
             return [DeviceTelemetrySchema.from_sqlite_row(dict(row)) for row in rows]
@@ -153,7 +155,7 @@ class TelemetryDatabaseService:
         """
         result: Dict[str, DeviceTelemetrySchema] = {}
         try:
-            with self._get_connection() as conn:
+            with closing(self._get_connection()) as conn:
                 cursor = conn.execute(sql)
                 rows = cursor.fetchall()
             for row in rows:
@@ -167,7 +169,7 @@ class TelemetryDatabaseService:
     def get_registered_device_names(self) -> List[str]:
         sql = "SELECT DISTINCT device_name FROM telemetry_history ORDER BY device_name ASC;"
         try:
-            with self._get_connection() as conn:
+            with closing(self._get_connection()) as conn:
                 cursor = conn.execute(sql)
                 return [row["device_name"] for row in cursor.fetchall() if row["device_name"]]
         except sqlite3.Error as exc:
@@ -176,7 +178,7 @@ class TelemetryDatabaseService:
 
     def get_history_count(self, device_name: Optional[str] = None) -> int:
         try:
-            with self._get_connection() as conn:
+            with closing(self._get_connection()) as conn:
                 if device_name:
                     cursor = conn.execute(
                         "SELECT COUNT(*) AS cnt FROM telemetry_history WHERE device_name = ?;",

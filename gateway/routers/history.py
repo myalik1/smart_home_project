@@ -13,7 +13,7 @@ router = APIRouter(tags=["Telemetry History"])
     response_model=List[DeviceTelemetrySchema],
     summary="Получить историю телеметрии конкретного устройства",
 )
-async def get_device_telemetry_history(
+def get_device_telemetry_history(
     device_name: str,
     limit: int = Query(default=100, ge=1, le=5000, description="Максимальное число записей"),
     start_ts: Optional[int] = Query(default=None, ge=0, description="Начало интервала (Unix ms)"),
@@ -55,7 +55,7 @@ async def get_device_telemetry_history(
     response_model=List[DeviceTelemetrySchema],
     summary="Получить общую ленту последних записей телеметрии по всем устройствам",
 )
-async def get_all_telemetry_history(
+def get_all_telemetry_history(
     limit: int = Query(default=100, ge=1, le=5000, description="Максимальное число записей"),
 ) -> List[DeviceTelemetrySchema]:
     return db_service.get_all_history(limit=limit)

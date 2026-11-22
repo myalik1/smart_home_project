@@ -35,21 +35,22 @@ class TelemetryWebSocketManager:
 
     async def connect(self, websocket: WebSocket, device_filter: Optional[str] = None) -> None:
         await websocket.accept()
+        snapshot_ok = await self._send_initial_snapshot(websocket, device_filter)
+        if not snapshot_ok:
+            return
+
         with self._lock:
             self._clients[id(websocket)] = _ClientSubscription(
                 websocket=websocket,
                 device_filter=device_filter,
             )
 
-        await self._send_initial_snapshot(websocket, device_filter)
-
     def disconnect(self, websocket: WebSocket) -> None:
         with self._lock:
             self._clients.pop(id(websocket), None)
 
     async def _send_initial_snapshot(
-        self, websocket: WebSocket, device_filter: Optional[str] = None
-    ) -> None:
+        self, websocket: WebSocket, device_filter: Optional[str] = None) -> bool:
         devices = mqtt_service.get_all_devices()
         for dev in devices:
             if device_filter and dev.deviceName != device_filter:
@@ -60,8 +61,8 @@ class TelemetryWebSocketManager:
                     await websocket.send_json(payload)
                 except Exception as exc:
                     logger.debug("Failed to send initial snapshot to WS client: %s", exc)
-                    self.disconnect(websocket)
-                    return
+                    return False
+        return True
 
     def on_mqtt_telemetry(self, telemetry: DeviceTelemetrySchema) -> None:
         with self._lock:
@@ -82,19 +83,22 @@ class TelemetryWebSocketManager:
 
     async def broadcast_telemetry(self, payload: dict, device_name: str) -> None:
         with self._lock:
-            subscriptions: List[_ClientSubscription] = list(self._clients.values())
+            targets: List[WebSocket] = [
+                sub.websocket
+                for sub in self._clients.values()
+                if not sub.device_filter or sub.device_filter == device_name
+            ]
 
-        stale_sockets: List[WebSocket] = []
-        for sub in subscriptions:
-            if sub.device_filter and sub.device_filter != device_name:
-                continue
-            try:
-                await sub.websocket.send_json(payload)
-            except Exception:
-                stale_sockets.append(sub.websocket)
+        if not targets:
+            return
 
-        for ws in stale_sockets:
-            self.disconnect(ws)
+        results = await asyncio.gather(
+            *(ws.send_json(payload) for ws in targets),
+            return_exceptions=True,
+        )
+        for ws, res in zip(targets, results):
+            if isinstance(res, Exception):
+                self.disconnect(ws)
 
 
 ws_manager = TelemetryWebSocketManager()

@@ -83,7 +83,7 @@ class DeviceTelemetrySchema(BaseModel):
 
     deviceName: str = Field(..., description="Уникальное имя устройства (например, Lamp1)")
     deviceType: str = Field(default="Unknown", description="Тип устройства")
-    serialNumber: str = Field(default="", description="Серийный номер")
+    serialNumber: Optional[str] = Field(default="", description="Серийный номер")
     timestamp: int = Field(
         default_factory=lambda: int(datetime.now(timezone.utc).timestamp() * 1000),
         description="Временная метка Unix в миллисекундах (int64 для QDateTime::fromMSecsSinceEpoch)",

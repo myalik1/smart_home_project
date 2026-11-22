@@ -1,5 +1,7 @@
 import json
 import threading
+import os
+from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, status
 
 from gateway.config import settings
@@ -27,11 +29,18 @@ def _load_rules_from_disk() -> RulesConfigSchema:
         ) from exc
 
 
+class RuleToggleRequest(BaseModel):
+    enabled: bool
+
+
 def _save_rules_to_disk(config: RulesConfigSchema) -> None:
     path = settings.rules_full_path
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = config.model_dump(mode="json", exclude_none=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    temp_path = path.with_suffix(".tmp")
+    temp_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(temp_path, path)
 
 
 @router.get(
@@ -102,3 +111,23 @@ async def delete_rule_item(rule_id: str) -> RulesConfigSchema:
 
         _save_rules_to_disk(config)
         return config
+
+
+@router.patch(
+    "/items/{rule_id}",
+    response_model=RuleItemSchema,
+    summary="Включить или выключить правило автоматизации по его ID",
+)
+async def toggle_rule_item(rule_id: str, body: RuleToggleRequest) -> RuleItemSchema:
+    with _rules_file_lock:
+        config = _load_rules_from_disk()
+        for rule in config.rules:
+            if rule.id == rule_id:
+                rule.enabled = body.enabled
+                _save_rules_to_disk(config)
+                return rule
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Rule with id '{rule_id}' not found.",
+        )

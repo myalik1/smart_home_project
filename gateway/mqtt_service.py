@@ -205,24 +205,31 @@ class MqttGatewayService:
 
         return telemetry
 
+    def _is_device_active(self, state: CachedDeviceState, now_ms: int) -> bool:
+        timeout_ms = settings.device_online_timeout_sec * 1000
+        return (
+            state.is_online
+            and state.last_seen_ms is not None
+            and (now_ms - state.last_seen_ms <= timeout_ms)
+        )
+
     def get_all_devices(self) -> List[DeviceStatusResponse]:
+        now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
         with self._lock:
-            result: List[DeviceStatusResponse] = []
-            for state in self._devices.values():
-                is_online = state.last_seen_ms is not None
-                result.append(
-                    DeviceStatusResponse(
-                        deviceName=state.device_name,
-                        deviceType=state.device_type,
-                        topic=state.topic,
-                        isOnline=state.is_online,
-                        lastSeenMs=state.last_seen_ms,
-                        telemetry=state.telemetry,
-                    )
+            return [
+                DeviceStatusResponse(
+                    deviceName=state.device_name,
+                    deviceType=state.device_type,
+                    topic=state.topic,
+                    isOnline=self._is_device_active(state, now_ms),
+                    lastSeenMs=state.last_seen_ms,
+                    telemetry=state.telemetry,
                 )
-            return result
+                for state in self._devices.values()
+            ]
 
     def get_device(self, device_name: str) -> Optional[DeviceStatusResponse]:
+        now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
         with self._lock:
             state = self._devices.get(device_name)
             if not state:
@@ -231,7 +238,7 @@ class MqttGatewayService:
                 deviceName=state.device_name,
                 deviceType=state.device_type,
                 topic=state.topic,
-                isOnline=state.is_online,
+                isOnline=self._is_device_active(state, now_ms),
                 lastSeenMs=state.last_seen_ms,
                 telemetry=state.telemetry,
             )
