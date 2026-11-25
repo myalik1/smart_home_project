@@ -1,14 +1,102 @@
 QMainWindow {
-    background-color: #f5f7fa;
+    background-color: #f3f5f9;
 }
 
 QLabel#titleLabel {
     font-size: 20px;
-    font-weight: 600;
-    color: #1f2937;
+    font-weight: 700;
+    color: #111827;
+    padding: 2px 0;
 }
 
-QLabel#statusValueLabel {
+QLabel#dashboardSummary {
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+}
+
+QPushButton#refreshDevicesButton {
+    background-color: #2563eb;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-weight: 600;
+}
+
+QPushButton#refreshDevicesButton:hover {
+    background-color: #1d4ed8;
+}
+
+QFrame#deviceCard {
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+}
+
+QLabel#deviceCardName {
+    font-size: 16px;
+    font-weight: 700;
+    color: #111827;
+}
+
+QLabel#deviceCardType {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+QLabel#onlineBadge {
+    border-radius: 10px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+QLabel#onlineBadge[online="true"] {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+QLabel#onlineBadge[online="false"] {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+QLabel#metricKey {
     font-size: 13px;
     color: #4b5563;
+}
+
+QLabel#metricValue {
+    font-size: 13px;
+    font-weight: 600;
+    color: #111827;
+}
+
+QLabel#deviceCardUpdatedAt {
+    font-size: 11px;
+    color: #9ca3af;
+}
+
+QLabel#statusBadge {
+    border-radius: 6px;
+    padding: 2px 8px;
+    margin-left: 6px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+QLabel#statusBadge[statusState="ok"] {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+QLabel#statusBadge[statusState="warn"] {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+QLabel#statusBadge[statusState="error"] {
+    background-color: #fee2e2;
+    color: #991b1b;
 }

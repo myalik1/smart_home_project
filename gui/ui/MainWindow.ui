@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>960</width>
-    <height>640</height>
+    <width>1040</width>
+    <height>700</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,6 +15,18 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
+    <property name="leftMargin">
+     <number>12</number>
+    </property>
+    <property name="topMargin">
+     <number>10</number>
+    </property>
+    <property name="rightMargin">
+     <number>12</number>
+    </property>
+    <property name="bottomMargin">
+     <number>8</number>
+    </property>
     <item>
      <widget class="QLabel" name="titleLabel">
       <property name="text">
@@ -23,14 +35,40 @@
      </widget>
     </item>
     <item>
-     <widget class="QLabel" name="statusValueLabel">
-      <property name="text">
-       <string>Initializing...</string>
+     <widget class="QTabWidget" name="mainTabWidget">
+      <property name="currentIndex">
+       <number>0</number>
       </property>
+      <widget class="QWidget" name="dashboardTab">
+       <attribute name="title">
+        <string>Главный дашборд</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="dashboardTabLayout">
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="chartsTab">
+       <attribute name="title">
+        <string>Графики (превью)</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="chartsTabLayout">
+        <item>
+         <widget class="QWidget" name="chartContainer" native="true"/>
+        </item>
+       </layout>
+      </widget>
      </widget>
-    </item>
-    <item>
-     <widget class="QWidget" name="chartContainer" native="true"/>
     </item>
    </layout>
   </widget>
