@@ -1,0 +1,14 @@
+QMainWindow {
+    background-color: #f5f7fa;
+}
+
+QLabel#titleLabel {
+    font-size: 20px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+QLabel#statusValueLabel {
+    font-size: 13px;
+    color: #4b5563;
+}
