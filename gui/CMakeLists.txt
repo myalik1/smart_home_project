@@ -35,26 +35,42 @@ target_link_libraries(SmartHomeGuiNet PUBLIC
     Qt6::WebSockets
 )
 
-add_executable(SmartHomeGui WIN32
-    src/main.cpp
-    src/MainWindow.cpp
+add_library(SmartHomeGuiUi STATIC
     include/MainWindow.h
+    include/widgets/DashboardWidget.h
+    include/widgets/DeviceCardWidget.h
+    src/MainWindow.cpp
+    src/widgets/DashboardWidget.cpp
+    src/widgets/DeviceCardWidget.cpp
     ui/MainWindow.ui
-    resources/resources.qrc
 )
 
-set_target_properties(SmartHomeGui PROPERTIES
+set_target_properties(SmartHomeGuiUi PROPERTIES
     AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_SOURCE_DIR}/ui"
 )
 
-target_link_libraries(SmartHomeGui PRIVATE
+target_include_directories(SmartHomeGuiUi PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+
+target_link_libraries(SmartHomeGuiUi PUBLIC
     SmartHomeGuiNet
     Qt6::Widgets
     Qt6::Charts
 )
 
+add_executable(SmartHomeGui WIN32
+    src/main.cpp
+    resources/resources.qrc
+)
+
+target_link_libraries(SmartHomeGui PRIVATE
+    SmartHomeGuiUi
+)
+
 if(BUILD_GUI_TESTS)
     find_package(Qt6 REQUIRED COMPONENTS Test)
+
     add_executable(smart_home_gui_tests
         tests/test_NetworkLayer.cpp
     )
@@ -63,4 +79,14 @@ if(BUILD_GUI_TESTS)
         Qt6::Test
     )
     add_test(NAME smart_home_gui_tests COMMAND smart_home_gui_tests)
+
+    add_executable(smart_home_dashboard_tests
+        tests/test_Dashboard.cpp
+        resources/resources.qrc
+    )
+    target_link_libraries(smart_home_dashboard_tests PRIVATE
+        SmartHomeGuiUi
+        Qt6::Test
+    )
+    add_test(NAME smart_home_dashboard_tests COMMAND smart_home_dashboard_tests)
 endif()
