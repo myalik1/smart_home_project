@@ -5,6 +5,14 @@ project(SmartHome)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(BUILD_BACKEND "Build C++ backend applications and unit tests" ON)
+option(BUILD_GUI "Build Qt 6 desktop GUI application" ON)
+
+if(BUILD_GUI)
+    add_subdirectory(gui)
+endif()
+
+if(BUILD_BACKEND)
 find_package(PahoMqttCpp REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(Threads REQUIRED)
@@ -116,3 +124,4 @@ target_link_libraries(smart_home_tests gtest_main SQLite::SQLite3 Threads::Threa
 
 include(GoogleTest)
 gtest_discover_tests(smart_home_tests)
+endif()
