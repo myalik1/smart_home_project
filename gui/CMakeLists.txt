@@ -5,23 +5,37 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     set(CMAKE_CXX_EXTENSIONS OFF)
+    enable_testing()
 endif()
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Network Charts)
-find_package(Qt6 COMPONENTS WebSockets QUIET)
+option(BUILD_GUI_TESTS "Build Qt 6 GUI unit tests" ON)
 
-if(NOT Qt6WebSockets_FOUND)
-    message(WARNING
-        "Qt6::WebSockets was not found in ${Qt6_DIR}. "
-        "SmartHomeGui will build without WebSocket support until Qt WebSockets is installed."
-    )
-endif()
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network WebSockets Charts)
 
-set(GUI_SOURCES
+add_library(SmartHomeGuiNet STATIC
+    include/net/DtoModels.h
+    include/net/ApiClient.h
+    include/net/WsClient.h
+    src/net/DtoModels.cpp
+    src/net/ApiClient.cpp
+    src/net/WsClient.cpp
+)
+
+target_include_directories(SmartHomeGuiNet PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+
+target_link_libraries(SmartHomeGuiNet PUBLIC
+    Qt6::Core
+    Qt6::Network
+    Qt6::WebSockets
+)
+
+add_executable(SmartHomeGui WIN32
     src/main.cpp
     src/MainWindow.cpp
     include/MainWindow.h
@@ -29,23 +43,24 @@ set(GUI_SOURCES
     resources/resources.qrc
 )
 
-add_executable(SmartHomeGui WIN32 ${GUI_SOURCES})
-
 set_target_properties(SmartHomeGui PROPERTIES
     AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_SOURCE_DIR}/ui"
 )
 
-target_include_directories(SmartHomeGui PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/include"
-)
-
 target_link_libraries(SmartHomeGui PRIVATE
+    SmartHomeGuiNet
     Qt6::Widgets
-    Qt6::Network
     Qt6::Charts
-    $<$<TARGET_EXISTS:Qt6::WebSockets>:Qt6::WebSockets>
 )
 
-target_compile_definitions(SmartHomeGui PRIVATE
-    $<$<TARGET_EXISTS:Qt6::WebSockets>:SMARTHOME_HAS_QT_WEBSOCKETS=1>
-)
+if(BUILD_GUI_TESTS)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+    add_executable(smart_home_gui_tests
+        tests/test_NetworkLayer.cpp
+    )
+    target_link_libraries(smart_home_gui_tests PRIVATE
+        SmartHomeGuiNet
+        Qt6::Test
+    )
+    add_test(NAME smart_home_gui_tests COMMAND smart_home_gui_tests)
+endif()

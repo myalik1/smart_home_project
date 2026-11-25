@@ -3,12 +3,12 @@
 
 #include <QMainWindow>
 
-class QNetworkAccessManager;
 class QChartView;
 
-#ifdef SMARTHOME_HAS_QT_WEBSOCKETS
-class QWebSocket;
-#endif
+namespace smarthome::net {
+class ApiClient;
+class WsClient;
+} // namespace smarthome::net
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -31,11 +31,9 @@ private:
     void loadStylesheet();
 
     Ui::MainWindow *ui;
-    QNetworkAccessManager *networkManager_;
+    smarthome::net::ApiClient *apiClient_;
+    smarthome::net::WsClient *wsClient_;
     QChartView *chartView_;
-#ifdef SMARTHOME_HAS_QT_WEBSOCKETS
-    QWebSocket *webSocket_;
-#endif
 };
 
 #endif // SMARTHOME_GUI_MAINWINDOW_H

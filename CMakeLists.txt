@@ -8,6 +8,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(BUILD_BACKEND "Build C++ backend applications and unit tests" ON)
 option(BUILD_GUI "Build Qt 6 desktop GUI application" ON)
 
+enable_testing()
+
 if(BUILD_GUI)
     add_subdirectory(gui)
 endif()
