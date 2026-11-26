@@ -219,12 +219,22 @@ void DeviceCardWidget::addPowerButtons() {
     offButton_->setObjectName(QStringLiteral("powerOffButton"));
 
     connect(onButton_, &QPushButton::clicked, this, [this]() {
-        emit commandRequested(deviceName_, smarthome::net::CommandRequest{
-            QStringLiteral("ON"), std::nullopt, std::nullopt});
+        if (deviceType_ == QStringLiteral("Thermostat")) {
+            emit commandRequested(deviceName_, smarthome::net::CommandRequest{
+                QStringLiteral("SET_MODE"), std::nullopt, QStringLiteral("HEAT")});
+        } else {
+            emit commandRequested(deviceName_, smarthome::net::CommandRequest{
+                QStringLiteral("ON"), std::nullopt, std::nullopt});
+        }
     });
     connect(offButton_, &QPushButton::clicked, this, [this]() {
-        emit commandRequested(deviceName_, smarthome::net::CommandRequest{
-            QStringLiteral("OFF"), std::nullopt, std::nullopt});
+        if (deviceType_ == QStringLiteral("Thermostat")) {
+            emit commandRequested(deviceName_, smarthome::net::CommandRequest{
+                QStringLiteral("SET_MODE"), std::nullopt, QStringLiteral("OFF")});
+        } else {
+            emit commandRequested(deviceName_, smarthome::net::CommandRequest{
+                QStringLiteral("OFF"), std::nullopt, std::nullopt});
+        }
     });
 
     auto *row = new QHBoxLayout();
@@ -329,8 +339,11 @@ void DeviceCardWidget::syncControlsFromTelemetry(const smarthome::net::DeviceTel
     updatingControls_ = true;
 
     if (onButton_ != nullptr && offButton_ != nullptr) {
-        onButton_->setProperty("activePower", telemetry.isOn);
-        offButton_->setProperty("activePower", !telemetry.isOn);
+        const bool isActive = (deviceType_ == QStringLiteral("Thermostat"))
+            ? (telemetry.mode.trimmed().toUpper() != QStringLiteral("OFF"))
+            : telemetry.isOn;
+        onButton_->setProperty("activePower", isActive);
+        offButton_->setProperty("activePower", !isActive);
         onButton_->style()->unpolish(onButton_);
         onButton_->style()->polish(onButton_);
         offButton_->style()->unpolish(offButton_);
