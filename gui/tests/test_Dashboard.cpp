@@ -393,6 +393,23 @@ private slots:
         QCOMPARE(cmdSpy.first().at(0).toString(), QStringLiteral("Therm1"));
         QCOMPARE(cmdSpy.first().at(1).value<CommandRequest>().command, QStringLiteral("SET_MODE"));
         QCOMPARE(*cmdSpy.first().at(1).value<CommandRequest>().mode, QStringLiteral("HEAT"));
+        cmdSpy.clear();
+
+        // Thermostat ON/OFF buttons map to SET_MODE HEAT / OFF and activePower tracks mode
+        thermCard->offButton()->click();
+        thermCard->onButton()->click();
+        QCOMPARE(cmdSpy.count(), 2);
+        QCOMPARE(cmdSpy.at(0).at(1).value<CommandRequest>().command, QStringLiteral("SET_MODE"));
+        QCOMPARE(*cmdSpy.at(0).at(1).value<CommandRequest>().mode, QStringLiteral("OFF"));
+        QCOMPARE(cmdSpy.at(1).at(1).value<CommandRequest>().command, QStringLiteral("SET_MODE"));
+        QCOMPARE(*cmdSpy.at(1).at(1).value<CommandRequest>().mode, QStringLiteral("HEAT"));
+
+        DeviceTelemetry thermHeat = therm;
+        thermHeat.mode = QStringLiteral("HEAT");
+        thermHeat.isOn = false;
+        thermCard->applyLiveTelemetry(thermHeat);
+        QCOMPARE(thermCard->onButton()->property("activePower").toBool(), true);
+        QCOMPARE(thermCard->offButton()->property("activePower").toBool(), false);
     }
 
     void testMainWindowSendsCommandsAndHandles503() {
@@ -521,6 +538,47 @@ private slots:
         QVERIFY(lastHistoryQuery.contains("start_ts=1762600000000"));
         QVERIFY(lastHistoryQuery.contains("end_ts=1762606000000"));
         QTRY_VERIFY_WITH_TIMEOUT(analytics->chart()->title().contains(QStringLiteral("Hygro1")), 2000);
+    }
+
+    void testAnalyticsLiveWebSocketFallbackWhenSqliteEmpty() {
+        TestGatewayServer server([&](const QByteArray &method,
+                                     const QByteArray &target,
+                                     const QByteArray &,
+                                     int &statusCode) -> QByteArray {
+            if (method == "GET" && target == "/api/v1/devices") {
+                statusCode = 200;
+                return R"([{"deviceName":"Therm1","deviceType":"Thermostat","topic":"home/therm1","isOnline":true}])";
+            }
+            if (method == "GET" && target == "/api/v1/health") {
+                statusCode = 200;
+                return R"({"status":"ok","version":"1.0.0","mqtt_connected":true})";
+            }
+            if (method == "GET" && target.contains("/history")) {
+                statusCode = 200;
+                return "[]";
+            }
+            statusCode = 404;
+            return R"({"detail":"Not found"})";
+        });
+
+        MainWindow window(server.restUrl(), server.wsUrl(), 5000);
+        auto *analytics = window.analyticsWidget();
+        QVERIFY(analytics != nullptr);
+
+        QTRY_VERIFY_WITH_TIMEOUT(window.wsStatusText().contains(QStringLiteral("Подключён")), 2000);
+        const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+        server.broadcastWsJson(QStringLiteral(
+            R"({"deviceName":"Therm1","deviceType":"Thermostat","timestamp":%1,"isOn":true,"currentTemperature":20.5,"targetTemperature":23.0,"mode":"HEAT"})")
+            .arg(nowMs - 2000));
+        server.broadcastWsJson(QStringLiteral(
+            R"({"deviceName":"Therm1","deviceType":"Thermostat","timestamp":%1,"isOn":true,"currentTemperature":21.2,"targetTemperature":23.0,"mode":"HEAT"})")
+            .arg(nowMs));
+
+        QTRY_VERIFY_WITH_TIMEOUT(analytics->chart()->series().size() == 2, 2000);
+        auto *primarySeries = qobject_cast<QLineSeries *>(analytics->chart()->series().first());
+        QVERIFY(primarySeries != nullptr);
+        QCOMPARE(primarySeries->count(), 2);
+        QTRY_COMPARE_WITH_TIMEOUT(analytics->eventsTable()->rowCount(), 2, 2000);
     }
 };
 
