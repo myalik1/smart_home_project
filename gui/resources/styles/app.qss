@@ -1,5 +1,7 @@
-QMainWindow {
+QMainWindow,
+QWidget#centralwidget {
     background-color: #f3f5f9;
+    color: #111827;
 }
 
 QLabel#titleLabel {
@@ -7,6 +9,35 @@ QLabel#titleLabel {
     font-weight: 700;
     color: #111827;
     padding: 2px 0;
+}
+
+QTabWidget::pane {
+    background-color: #f3f5f9;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+}
+
+QTabBar::tab {
+    background-color: #e5e7eb;
+    color: #374151;
+    padding: 7px 16px;
+    margin-right: 4px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    font-weight: 600;
+}
+
+QTabBar::tab:selected {
+    background-color: #ffffff;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+    border-bottom: none;
+}
+
+QScrollArea#dashboardScrollArea,
+QWidget#dashboardGridHost {
+    background-color: #f3f5f9;
+    border: none;
 }
 
 QLabel#dashboardSummary {
@@ -62,20 +93,92 @@ QLabel#onlineBadge[online="false"] {
     color: #991b1b;
 }
 
-QLabel#metricKey {
+QLabel#metricKey,
+QLabel#controlLabel {
     font-size: 13px;
     color: #4b5563;
 }
 
-QLabel#metricValue {
+QLabel#metricValue,
+QLabel#controlValueLabel {
     font-size: 13px;
     font-weight: 600;
     color: #111827;
 }
 
+QFrame#cardDivider {
+    background-color: #e5e7eb;
+    border: none;
+}
+
+QPushButton#powerOnButton,
+QPushButton#powerOffButton {
+    background-color: #f3f4f6;
+    color: #1f2937;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QPushButton#powerOnButton:hover,
+QPushButton#powerOffButton:hover {
+    background-color: #e5e7eb;
+}
+
+QPushButton#powerOnButton[activePower="true"] {
+    background-color: #16a34a;
+    color: #ffffff;
+    border-color: #15803d;
+}
+
+QPushButton#powerOffButton[activePower="true"] {
+    background-color: #dc2626;
+    color: #ffffff;
+    border-color: #b91c1c;
+}
+
+QDoubleSpinBox#targetTempSpinBox,
+QComboBox#thermostatModeCombo {
+    background-color: #ffffff;
+    color: #111827;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 4px 8px;
+}
+
 QLabel#deviceCardUpdatedAt {
     font-size: 11px;
     color: #9ca3af;
+}
+
+QFrame#alertBanner {
+    background-color: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: 8px;
+}
+
+QLabel#alertBannerLabel {
+    color: #991b1b;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QPushButton#alertBannerClose {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+    border-radius: 5px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QStatusBar {
+    background-color: #ffffff;
+    color: #374151;
+    border-top: 1px solid #e5e7eb;
 }
 
 QLabel#statusBadge {
