@@ -6,7 +6,6 @@
 #include <QMainWindow>
 #include <QUrl>
 
-class QChartView;
 class QFrame;
 class QLabel;
 class QPushButton;
@@ -18,6 +17,7 @@ class WsClient;
 } // namespace smarthome::net
 
 namespace smarthome::ui {
+class AnalyticsWidget;
 class DashboardWidget;
 } // namespace smarthome::ui
 
@@ -42,6 +42,7 @@ public:
     ~MainWindow() override;
 
     smarthome::ui::DashboardWidget *dashboardWidget() const { return dashboardWidget_; }
+    smarthome::ui::AnalyticsWidget *analyticsWidget() const { return analyticsWidget_; }
     QString gatewayStatusText() const;
     QString mqttStatusText() const;
     QString wsStatusText() const;
@@ -59,8 +60,8 @@ private slots:
 private:
     void setupAlertBanner();
     void setupDashboardTab();
+    void setupAnalyticsTab();
     void setupStatusBarIndicators();
-    void setupTelemetryPreviewChart();
     void setupConnections();
     void startGatewaySync();
     void showAlertBanner(const QString &message);
@@ -73,7 +74,7 @@ private:
     smarthome::net::ApiClient *apiClient_;
     smarthome::net::WsClient *wsClient_;
     smarthome::ui::DashboardWidget *dashboardWidget_;
-    QChartView *chartView_;
+    smarthome::ui::AnalyticsWidget *analyticsWidget_;
     QTimer *healthPollTimer_;
 
     QFrame *alertBanner_;

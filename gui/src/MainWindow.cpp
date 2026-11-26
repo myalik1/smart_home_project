@@ -3,20 +3,18 @@
 
 #include "net/ApiClient.h"
 #include "net/WsClient.h"
+#include "widgets/AnalyticsWidget.h"
 #include "widgets/DashboardWidget.h"
 
-#include <QChart>
-#include <QChartView>
 #include <QFile>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QLineSeries>
 #include <QPushButton>
 #include <QStatusBar>
 #include <QStyle>
+#include <QTabWidget>
 #include <QTimer>
-#include <QVBoxLayout>
 
 MainWindow::MainWindow(QWidget *parent)
     : MainWindow(QUrl(QStringLiteral("http://127.0.0.1:8001/api/v1")),
@@ -33,7 +31,7 @@ MainWindow::MainWindow(const QUrl &restBaseUrl,
     , apiClient_(new smarthome::net::ApiClient(restBaseUrl, this))
     , wsClient_(new smarthome::net::WsClient(wsUrl, this))
     , dashboardWidget_(new smarthome::ui::DashboardWidget(this))
-    , chartView_(nullptr)
+    , analyticsWidget_(new smarthome::ui::AnalyticsWidget(this))
     , healthPollTimer_(new QTimer(this))
     , alertBanner_(new QFrame(this))
     , alertLabel_(new QLabel(alertBanner_))
@@ -46,8 +44,8 @@ MainWindow::MainWindow(const QUrl &restBaseUrl,
     loadStylesheet();
     setupAlertBanner();
     setupDashboardTab();
+    setupAnalyticsTab();
     setupStatusBarIndicators();
-    setupTelemetryPreviewChart();
     setupConnections();
     startGatewaySync();
 }
@@ -97,6 +95,10 @@ void MainWindow::setupDashboardTab() {
     ui->dashboardTabLayout->addWidget(dashboardWidget_);
 }
 
+void MainWindow::setupAnalyticsTab() {
+    ui->analyticsTabLayout->addWidget(analyticsWidget_);
+}
+
 void MainWindow::setupStatusBarIndicators() {
     gatewayStatusLabel_->setObjectName(QStringLiteral("statusBadge"));
     mqttStatusLabel_->setObjectName(QStringLiteral("statusBadge"));
@@ -111,29 +113,15 @@ void MainWindow::setupStatusBarIndicators() {
     statusBar()->addPermanentWidget(wsStatusLabel_);
 }
 
-void MainWindow::setupTelemetryPreviewChart() {
-    auto *series = new QLineSeries(this);
-    series->setName(tr("Telemetry Preview"));
-    series->append(0, 21.5);
-    series->append(1, 22.0);
-    series->append(2, 22.4);
-
-    auto *chart = new QChart();
-    chart->addSeries(series);
-    chart->createDefaultAxes();
-    chart->setTitle(tr("Smart Home Telemetry"));
-
-    chartView_ = new QChartView(chart, ui->chartContainer);
-    chartView_->setRenderHint(QPainter::Antialiasing);
-
-    auto *layout = new QVBoxLayout(ui->chartContainer);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->addWidget(chartView_);
-}
-
 void MainWindow::setupConnections() {
     connect(apiClient_, &smarthome::net::ApiClient::devicesReceived,
             dashboardWidget_, &smarthome::ui::DashboardWidget::setDevices);
+    connect(apiClient_, &smarthome::net::ApiClient::devicesReceived,
+            analyticsWidget_, &smarthome::ui::AnalyticsWidget::setAvailableDevices);
+    connect(apiClient_, &smarthome::net::ApiClient::deviceHistoryReceived,
+            analyticsWidget_, &smarthome::ui::AnalyticsWidget::setDeviceHistory);
+    connect(apiClient_, &smarthome::net::ApiClient::allHistoryReceived,
+            analyticsWidget_, &smarthome::ui::AnalyticsWidget::setAllHistory);
     connect(apiClient_, &smarthome::net::ApiClient::healthReceived,
             this, &MainWindow::onHealthReceived);
     connect(apiClient_, &smarthome::net::ApiClient::commandSent,
@@ -145,6 +133,19 @@ void MainWindow::setupConnections() {
             apiClient_, &smarthome::net::ApiClient::getDevices);
     connect(dashboardWidget_, &smarthome::ui::DashboardWidget::commandRequested,
             apiClient_, &smarthome::net::ApiClient::sendCommand);
+
+    connect(analyticsWidget_, &smarthome::ui::AnalyticsWidget::deviceHistoryRequested,
+            this, [this](const QString &deviceName, qint64 startTsMs, qint64 endTsMs, int limit) {
+                apiClient_->getDeviceHistory(deviceName, limit, startTsMs, endTsMs);
+            });
+    connect(analyticsWidget_, &smarthome::ui::AnalyticsWidget::allHistoryRequested,
+            apiClient_, &smarthome::net::ApiClient::getAllHistory);
+
+    connect(ui->mainTabWidget, &QTabWidget::currentChanged, this, [this](int idx) {
+        if (ui->mainTabWidget->widget(idx) == ui->analyticsTab) {
+            analyticsWidget_->requestRefresh();
+        }
+    });
 
     connect(wsClient_, &smarthome::net::WsClient::telemetryReceived,
             dashboardWidget_, &smarthome::ui::DashboardWidget::updateTelemetry);
@@ -162,6 +163,7 @@ void MainWindow::setupConnections() {
 void MainWindow::startGatewaySync() {
     apiClient_->getDevices();
     apiClient_->getHealth();
+    analyticsWidget_->requestRefresh();
     healthPollTimer_->start(healthPollIntervalMs_);
     wsClient_->connectToGateway();
 }

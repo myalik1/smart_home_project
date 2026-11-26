@@ -58,14 +58,23 @@
         </property>
        </layout>
       </widget>
-      <widget class="QWidget" name="chartsTab">
+      <widget class="QWidget" name="analyticsTab">
        <attribute name="title">
-        <string>Графики (превью)</string>
+        <string>Графики и аналитика</string>
        </attribute>
-       <layout class="QVBoxLayout" name="chartsTabLayout">
-        <item>
-         <widget class="QWidget" name="chartContainer" native="true"/>
-        </item>
+       <layout class="QVBoxLayout" name="analyticsTabLayout">
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
        </layout>
       </widget>
      </widget>
