@@ -41,6 +41,7 @@ public:
                           int limit = 100,
                           std::optional<qint64> startTs = std::nullopt,
                           std::optional<qint64> endTs = std::nullopt);
+    void getAllHistory(int limit = 100);
     void getRules();
     void addRule(const RuleItem &rule);
     void toggleRule(const QString &ruleId, bool enabled);
@@ -52,6 +53,7 @@ signals:
     void commandSent(const smarthome::net::CommandResult &result);
     void deviceHistoryReceived(const QString &deviceName,
                                const QVector<smarthome::net::DeviceTelemetry> &history);
+    void allHistoryReceived(const QVector<smarthome::net::DeviceTelemetry> &history);
     void rulesReceived(const QVector<smarthome::net::RuleItem> &rules);
     void ruleAdded(const smarthome::net::RuleItem &rule);
     void ruleToggled(const smarthome::net::RuleItem &rule);

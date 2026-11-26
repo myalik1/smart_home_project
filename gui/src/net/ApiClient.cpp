@@ -157,6 +157,21 @@ void ApiClient::getDeviceHistory(const QString &deviceName,
     });
 }
 
+void ApiClient::getAllHistory(int limit) {
+    const QString endpoint = QStringLiteral("/history");
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("limit"), QString::number(limit));
+
+    QNetworkReply *reply = networkManager_->get(createJsonRequest(buildUrl(endpoint, query)));
+    attachReplyHandler(reply, endpoint, [this, endpoint](const QJsonDocument &doc, int httpStatus) {
+        if (!doc.isArray()) {
+            emit requestFailed(endpoint, httpStatus, QStringLiteral("Expected JSON array from /history"));
+            return;
+        }
+        emit allHistoryReceived(DeviceTelemetry::listFromJson(doc.array()));
+    });
+}
+
 void ApiClient::getRules() {
     const QString endpoint = QStringLiteral("/rules");
     QNetworkReply *reply = networkManager_->get(createJsonRequest(buildUrl(endpoint)));
