@@ -1,7 +1,17 @@
 QMainWindow,
-QWidget#centralwidget {
+QWidget#centralwidget,
+QDialog,
+QMessageBox {
     background-color: #f3f5f9;
     color: #111827;
+    font-family: "Segoe UI", sans-serif;
+}
+
+QToolTip {
+    background-color: #ffffff;
+    color: #111827;
+    border: 1px solid #d1d5db;
+    padding: 4px 6px;
 }
 
 QLabel#titleLabel {
@@ -372,4 +382,34 @@ QLabel#addRuleErrorLabel {
     padding: 6px 10px;
     font-size: 12px;
     font-weight: 600;
+}
+
+QSpinBox,
+QTimeEdit {
+    background-color: #ffffff;
+    color: #111827;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 4px 8px;
+}
+
+QScrollBar:vertical {
+    background: #f3f5f9;
+    width: 10px;
+    margin: 0;
+}
+
+QScrollBar::handle:vertical {
+    background: #cbd5e1;
+    border-radius: 5px;
+    min-height: 24px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #94a3b8;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0;
 }
