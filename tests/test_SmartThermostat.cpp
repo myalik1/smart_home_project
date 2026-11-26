@@ -55,3 +55,15 @@ TEST_F(SmartThermostatTest, IgnoresInvalidJson) {
     thermostat->onMessageReceived("invalid_json");
     EXPECT_TRUE(mockSender.lastMessage.empty());
 }
+
+TEST_F(SmartThermostatTest, AdvancesPastDotSevenFloatPrecisionBoundary) {
+    thermostat->updateCurrentTemperature(20.7f);
+    EXPECT_FLOAT_EQ(thermostat->getCurrentTemperature(), 20.7f);
+
+    mockSender.topicMessages.clear();
+    thermostat->updateCurrentTemperature(20.815f);
+    EXPECT_FLOAT_EQ(thermostat->getCurrentTemperature(), 20.8f);
+    ASSERT_TRUE(mockSender.topicMessages.count("home/therm1") > 0);
+    json published = json::parse(mockSender.topicMessages["home/therm1"]);
+    EXPECT_NEAR(published["currentTemperature"].get<float>(), 20.8f, 0.01f);
+}

@@ -143,7 +143,8 @@ void SmartThermostat::updateCurrentTemperature(float temp) {
     {
         std::lock_guard<std::mutex> lock(stateMutex);
         float rounded = std::round(temp * 10.0f) / 10.0f;
-        if (std::abs(currentTemperature - rounded) >= 0.1f) {
+        // Use 0.05f threshold because float32 differences like 20.8f - 20.7f evaluate slightly below 0.1f.
+        if (std::abs(currentTemperature - rounded) >= 0.05f) {
             currentTemperature = rounded;
             changed = true;
         }
