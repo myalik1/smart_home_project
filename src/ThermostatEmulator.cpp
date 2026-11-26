@@ -1,9 +1,15 @@
 #include "../include/ThermostatEmulator.h"
 #include <chrono>
+#include <cmath>
 
 ThermostatEmulator::ThermostatEmulator(SmartThermostat* thermo, float ambientTemp)
-    : thermostat(thermo), roomBaseTemperature(ambientTemp), isRunning(false) {
+    : thermostat(thermo)
+    , roomBaseTemperature(ambientTemp)
+    , exactTemperature(ambientTemp)
+    , lastPushedRoundedTemp(ambientTemp)
+    , isRunning(false) {
     thermostat->updateCurrentTemperature(roomBaseTemperature);
+    lastPushedRoundedTemp = thermostat->getCurrentTemperature();
 }
 
 ThermostatEmulator::~ThermostatEmulator() {
@@ -32,16 +38,21 @@ void ThermostatEmulator::stop() {
 }
 
 void ThermostatEmulator::tick() {
-    float currentTemp = thermostat->getCurrentTemperature();
+    float deviceTemp = thermostat->getCurrentTemperature();
+    if (std::abs(deviceTemp - lastPushedRoundedTemp) >= 0.05f) {
+        exactTemperature = deviceTemp;
+    }
+
     int valveLevel = thermostat->getRadiatorValveLevel();
 
     float heatGain = (valveLevel / 100.0f) * 0.5f;
-    float heatLoss = (currentTemp > roomBaseTemperature) ? 0.1f : 0.0f;
+    float heatLoss = (exactTemperature > roomBaseTemperature) ? 0.1f : 0.0f;
 
-    float nextTemp = currentTemp + heatGain - heatLoss;
-    if (nextTemp < roomBaseTemperature) {
-        nextTemp = roomBaseTemperature;
+    exactTemperature = exactTemperature + heatGain - heatLoss;
+    if (exactTemperature < roomBaseTemperature) {
+        exactTemperature = roomBaseTemperature;
     }
 
-    thermostat->updateCurrentTemperature(nextTemp);
+    thermostat->updateCurrentTemperature(exactTemperature);
+    lastPushedRoundedTemp = thermostat->getCurrentTemperature();
 }

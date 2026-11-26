@@ -52,7 +52,8 @@ void SmartThermostat::syncRadiatorValve() {
             if (diff >= 3.0f) {
                 desiredValve = 100;
             } else {
-                desiredValve = std::clamp(static_cast<int>((diff / 3.0f) * 100.0f), 15, 100);
+                // Keep at least 30% valve while heating so heat gain (0.15) exceeds heat loss (0.10)
+                desiredValve = std::clamp(static_cast<int>((diff / 3.0f) * 100.0f), 30, 100);
             }
         } else {
             desiredValve = 0;

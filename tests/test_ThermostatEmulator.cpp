@@ -78,3 +78,31 @@ TEST(ThermostatEmulatorTest, HandlesInvalidCommandsAndFastThreadStop) {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     thermoEmu.stop();
 }
+
+TEST(ThermostatEmulatorTest, ClosedLoopReachesExactTargetTemperature) {
+    RoutingMockSender router;
+    SmartRadiator radiator("Rad1", "R-01", "Radiator", "home/radiator1");
+    SmartThermostat thermostat("Therm1", "T-01", "Thermostat", "home/therm1", "home/radiator1/set");
+
+    router.targetRadiator = &radiator;
+    router.targetThermostat = &thermostat;
+    radiator.setSender(&router);
+    thermostat.setSender(&router);
+
+    RadiatorEmulator radEmu(&radiator, 10);
+    ThermostatEmulator thermoEmu(&thermostat, 16.0f);
+
+    thermostat.onMessageReceived(R"({"command": "SET_TEMPERATURE", "value": 22.0})");
+    thermostat.onMessageReceived(R"({"command": "SET_MODE", "mode": "HEAT"})");
+
+    for (int i = 0; i < 150; ++i) {
+        radEmu.tick();
+        thermoEmu.tick();
+        if (thermostat.getCurrentTemperature() >= 22.0f && radiator.getTargetValveLevel() == 0) {
+            break;
+        }
+    }
+
+    EXPECT_GE(thermostat.getCurrentTemperature(), 22.0f);
+    EXPECT_EQ(radiator.getTargetValveLevel(), 0);
+}
