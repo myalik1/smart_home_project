@@ -211,6 +211,9 @@ private slots:
             if (req.method == "GET" && req.target == "/api/v1/devices/Therm1/history?limit=50&start_ts=1000&end_ts=2000") {
                 return {200, "OK", R"([{"deviceName":"Therm1","deviceType":"Thermostat","timestamp":1500,"isOn":true,"currentTemperature":22.0,"targetTemperature":23.0,"mode":"HEAT"}])"};
             }
+            if (req.method == "GET" && req.target == "/api/v1/history?limit=100") {
+                return {200, "OK", R"([{"deviceName":"Lamp1","deviceType":"Lamp","timestamp":1600,"isOn":true,"brightness":90,"mode":"OFF"}])"};
+            }
             if (req.method == "GET" && req.target == "/api/v1/rules") {
                 return {200, "OK", R"({"rules":[{"id":"r1","type":"point","enabled":true,"time":"23:30:00"}]})"};
             }
@@ -249,6 +252,13 @@ private slots:
         client.getDeviceHistory(QStringLiteral("Therm1"), 50, 1000, 2000);
         QVERIFY(histSpy.wait(2000));
         QCOMPARE(histSpy.first().at(1).value<QVector<DeviceTelemetry>>().size(), 1);
+
+        QSignalSpy allHistSpy(&client, &ApiClient::allHistoryReceived);
+        client.getAllHistory(100);
+        QVERIFY(allHistSpy.wait(2000));
+        QCOMPARE(allHistSpy.first().first().value<QVector<DeviceTelemetry>>().size(), 1);
+        QCOMPARE(allHistSpy.first().first().value<QVector<DeviceTelemetry>>().first().deviceName,
+                 QStringLiteral("Lamp1"));
 
         QSignalSpy rulesSpy(&client, &ApiClient::rulesReceived);
         client.getRules();

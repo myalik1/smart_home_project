@@ -1,15 +1,20 @@
 #include "MainWindow.h"
+#include "widgets/AnalyticsWidget.h"
 #include "widgets/DashboardWidget.h"
 #include "widgets/DeviceCardWidget.h"
 
+#include <QChart>
 #include <QComboBox>
+#include <QDateTimeEdit>
 #include <QDoubleSpinBox>
 #include <QHash>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLineSeries>
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QSlider>
+#include <QTableWidget>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTest>
@@ -439,6 +444,83 @@ private slots:
 
         QTRY_VERIFY_WITH_TIMEOUT(window.isAlertBannerVisible(), 2000);
         QVERIFY(window.alertBannerText().contains(QStringLiteral("Нет связи с MQTT-брокером")));
+    }
+
+    void testAnalyticsTabFiltersChartsAndEventsTable() {
+        QByteArray lastHistoryQuery;
+        QByteArray lastAllHistoryTarget;
+
+        TestGatewayServer server([&](const QByteArray &method,
+                                     const QByteArray &target,
+                                     const QByteArray &,
+                                     int &statusCode) -> QByteArray {
+            if (method == "GET" && target == "/api/v1/devices") {
+                statusCode = 200;
+                return R"([
+                    {"deviceName":"Therm1","deviceType":"Thermostat","topic":"home/therm1","isOnline":true},
+                    {"deviceName":"Hygro1","deviceType":"Hygrometer","topic":"home/hygro1","isOnline":true}
+                ])";
+            }
+            if (method == "GET" && target == "/api/v1/health") {
+                statusCode = 200;
+                return R"({"status":"ok","version":"1.0.0","mqtt_connected":true})";
+            }
+            if (method == "GET" && target.startsWith("/api/v1/devices/Therm1/history")) {
+                lastHistoryQuery = target;
+                statusCode = 200;
+                return R"([
+                    {"deviceName":"Therm1","deviceType":"Thermostat","timestamp":1762605000000,"isOn":true,"currentTemperature":21.0,"targetTemperature":23.5,"mode":"HEAT"},
+                    {"deviceName":"Therm1","deviceType":"Thermostat","timestamp":1762605060000,"isOn":true,"currentTemperature":22.2,"targetTemperature":23.5,"mode":"HEAT"}
+                ])";
+            }
+            if (method == "GET" && target.startsWith("/api/v1/devices/Hygro1/history")) {
+                lastHistoryQuery = target;
+                statusCode = 200;
+                return R"([
+                    {"deviceName":"Hygro1","deviceType":"Hygrometer","timestamp":1762605120000,"isOn":true,"currentHumidity":49.5,"currentTemperature":22.0}
+                ])";
+            }
+            if (method == "GET" && target.startsWith("/api/v1/history")) {
+                lastAllHistoryTarget = target;
+                statusCode = 200;
+                return R"([
+                    {"deviceName":"Hygro1","deviceType":"Hygrometer","timestamp":1762605120000,"timestampIso":"2026-11-26T07:00:00.000+00:00","isOn":true,"currentHumidity":49.5,"currentTemperature":22.0},
+                    {"deviceName":"Therm1","deviceType":"Thermostat","timestamp":1762605060000,"timestampIso":"2026-11-26T06:59:00.000+00:00","isOn":true,"currentTemperature":22.2,"targetTemperature":23.5,"mode":"HEAT"}
+                ])";
+            }
+            statusCode = 404;
+            return R"({"detail":"Not found"})";
+        });
+
+        MainWindow window(server.restUrl(), server.wsUrl(), 5000);
+        auto *analytics = window.analyticsWidget();
+        QVERIFY(analytics != nullptr);
+
+        // Initial load populates Therm1 chart (2 series: current + target) and events table
+        QTRY_VERIFY_WITH_TIMEOUT(analytics->chart()->series().size() == 2, 2000);
+        auto *primarySeries = qobject_cast<QLineSeries *>(analytics->chart()->series().first());
+        QVERIFY(primarySeries != nullptr);
+        QCOMPARE(primarySeries->count(), 2);
+        QVERIFY(lastHistoryQuery.contains("limit=1000"));
+        QVERIFY(lastHistoryQuery.contains("start_ts="));
+        QVERIFY(lastHistoryQuery.contains("end_ts="));
+
+        QTRY_COMPARE_WITH_TIMEOUT(analytics->eventsTable()->rowCount(), 2, 2000);
+        QCOMPARE(lastAllHistoryTarget, QByteArray("/api/v1/history?limit=100"));
+        QCOMPARE(analytics->eventsTable()->item(0, 1)->text(), QStringLiteral("Hygro1"));
+
+        // Manual date edits switch preset to custom (-1) and convert to Unix ms on refresh
+        const QDateTime customStart = QDateTime::fromMSecsSinceEpoch(1762600000000);
+        const QDateTime customEnd = QDateTime::fromMSecsSinceEpoch(1762606000000);
+        analytics->startDateTimeEdit()->setDateTime(customStart);
+        analytics->endDateTimeEdit()->setDateTime(customEnd);
+        QCOMPARE(analytics->presetComboBox()->currentData().toInt(), -1);
+
+        analytics->deviceComboBox()->setCurrentText(QStringLiteral("Hygro1"));
+        QTRY_VERIFY_WITH_TIMEOUT(lastHistoryQuery.startsWith("/api/v1/devices/Hygro1/history"), 2000);
+        QVERIFY(lastHistoryQuery.contains("start_ts=1762600000000"));
+        QVERIFY(lastHistoryQuery.contains("end_ts=1762606000000"));
+        QTRY_VERIFY_WITH_TIMEOUT(analytics->chart()->title().contains(QStringLiteral("Hygro1")), 2000);
     }
 };
 
