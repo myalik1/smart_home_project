@@ -37,13 +37,17 @@ target_link_libraries(SmartHomeGuiNet PUBLIC
 
 add_library(SmartHomeGuiUi STATIC
     include/MainWindow.h
+    include/widgets/AddRuleDialog.h
     include/widgets/AnalyticsWidget.h
     include/widgets/DashboardWidget.h
     include/widgets/DeviceCardWidget.h
+    include/widgets/RulesAndSettingsWidget.h
     src/MainWindow.cpp
+    src/widgets/AddRuleDialog.cpp
     src/widgets/AnalyticsWidget.cpp
     src/widgets/DashboardWidget.cpp
     src/widgets/DeviceCardWidget.cpp
+    src/widgets/RulesAndSettingsWidget.cpp
     ui/MainWindow.ui
 )
 

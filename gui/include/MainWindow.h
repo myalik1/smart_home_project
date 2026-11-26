@@ -19,6 +19,7 @@ class WsClient;
 namespace smarthome::ui {
 class AnalyticsWidget;
 class DashboardWidget;
+class RulesAndSettingsWidget;
 } // namespace smarthome::ui
 
 QT_BEGIN_NAMESPACE
@@ -43,6 +44,7 @@ public:
 
     smarthome::ui::DashboardWidget *dashboardWidget() const { return dashboardWidget_; }
     smarthome::ui::AnalyticsWidget *analyticsWidget() const { return analyticsWidget_; }
+    smarthome::ui::RulesAndSettingsWidget *rulesAndSettingsWidget() const { return rulesSettingsWidget_; }
     QString gatewayStatusText() const;
     QString mqttStatusText() const;
     QString wsStatusText() const;
@@ -53,6 +55,7 @@ private slots:
     void onHealthReceived(const smarthome::net::HealthStatus &health);
     void onCommandSent(const smarthome::net::CommandResult &result);
     void onApiRequestFailed(const QString &endpoint, int httpStatus, const QString &errorMessage);
+    void onGatewayUrlApplyRequested(const QUrl &gatewayOrigin);
     void onWsConnected();
     void onWsDisconnected();
     void onWsReconnecting(int attempt, int delayMs);
@@ -61,6 +64,7 @@ private:
     void setupAlertBanner();
     void setupDashboardTab();
     void setupAnalyticsTab();
+    void setupRulesSettingsTab();
     void setupStatusBarIndicators();
     void setupConnections();
     void startGatewaySync();
@@ -75,6 +79,7 @@ private:
     smarthome::net::WsClient *wsClient_;
     smarthome::ui::DashboardWidget *dashboardWidget_;
     smarthome::ui::AnalyticsWidget *analyticsWidget_;
+    smarthome::ui::RulesAndSettingsWidget *rulesSettingsWidget_;
     QTimer *healthPollTimer_;
 
     QFrame *alertBanner_;

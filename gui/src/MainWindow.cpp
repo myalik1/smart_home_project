@@ -5,6 +5,7 @@
 #include "net/WsClient.h"
 #include "widgets/AnalyticsWidget.h"
 #include "widgets/DashboardWidget.h"
+#include "widgets/RulesAndSettingsWidget.h"
 
 #include <QFile>
 #include <QFrame>
@@ -32,6 +33,7 @@ MainWindow::MainWindow(const QUrl &restBaseUrl,
     , wsClient_(new smarthome::net::WsClient(wsUrl, this))
     , dashboardWidget_(new smarthome::ui::DashboardWidget(this))
     , analyticsWidget_(new smarthome::ui::AnalyticsWidget(this))
+    , rulesSettingsWidget_(new smarthome::ui::RulesAndSettingsWidget(restBaseUrl, this))
     , healthPollTimer_(new QTimer(this))
     , alertBanner_(new QFrame(this))
     , alertLabel_(new QLabel(alertBanner_))
@@ -45,6 +47,7 @@ MainWindow::MainWindow(const QUrl &restBaseUrl,
     setupAlertBanner();
     setupDashboardTab();
     setupAnalyticsTab();
+    setupRulesSettingsTab();
     setupStatusBarIndicators();
     setupConnections();
     startGatewaySync();
@@ -99,6 +102,10 @@ void MainWindow::setupAnalyticsTab() {
     ui->analyticsTabLayout->addWidget(analyticsWidget_);
 }
 
+void MainWindow::setupRulesSettingsTab() {
+    ui->rulesSettingsTabLayout->addWidget(rulesSettingsWidget_);
+}
+
 void MainWindow::setupStatusBarIndicators() {
     gatewayStatusLabel_->setObjectName(QStringLiteral("statusBadge"));
     mqttStatusLabel_->setObjectName(QStringLiteral("statusBadge"));
@@ -118,10 +125,32 @@ void MainWindow::setupConnections() {
             dashboardWidget_, &smarthome::ui::DashboardWidget::setDevices);
     connect(apiClient_, &smarthome::net::ApiClient::devicesReceived,
             analyticsWidget_, &smarthome::ui::AnalyticsWidget::setAvailableDevices);
+    connect(apiClient_, &smarthome::net::ApiClient::devicesReceived,
+            rulesSettingsWidget_, &smarthome::ui::RulesAndSettingsWidget::setAvailableDevices);
     connect(apiClient_, &smarthome::net::ApiClient::deviceHistoryReceived,
             analyticsWidget_, &smarthome::ui::AnalyticsWidget::setDeviceHistory);
     connect(apiClient_, &smarthome::net::ApiClient::allHistoryReceived,
             analyticsWidget_, &smarthome::ui::AnalyticsWidget::setAllHistory);
+
+    connect(apiClient_, &smarthome::net::ApiClient::rulesReceived,
+            rulesSettingsWidget_, &smarthome::ui::RulesAndSettingsWidget::setRules);
+    connect(apiClient_, &smarthome::net::ApiClient::ruleAdded,
+            this, [this](const smarthome::net::RuleItem &rule) {
+                rulesSettingsWidget_->onRuleAdded(rule);
+                statusBar()->showMessage(tr("Правило '%1' добавлено").arg(rule.id), 3000);
+            });
+    connect(apiClient_, &smarthome::net::ApiClient::ruleToggled,
+            this, [this](const smarthome::net::RuleItem &rule) {
+                rulesSettingsWidget_->onRuleToggled(rule);
+                statusBar()->showMessage(
+                    tr("Правило '%1' %2").arg(rule.id, rule.enabled ? tr("включено") : tr("выключено")), 3000);
+            });
+    connect(apiClient_, &smarthome::net::ApiClient::ruleDeleted,
+            this, [this](const QString &ruleId, const QVector<smarthome::net::RuleItem> &remaining) {
+                rulesSettingsWidget_->onRuleDeleted(ruleId, remaining);
+                statusBar()->showMessage(tr("Правило '%1' удалено").arg(ruleId), 3000);
+            });
+
     connect(apiClient_, &smarthome::net::ApiClient::healthReceived,
             this, &MainWindow::onHealthReceived);
     connect(apiClient_, &smarthome::net::ApiClient::commandSent,
@@ -141,9 +170,29 @@ void MainWindow::setupConnections() {
     connect(analyticsWidget_, &smarthome::ui::AnalyticsWidget::allHistoryRequested,
             apiClient_, &smarthome::net::ApiClient::getAllHistory);
 
+    connect(rulesSettingsWidget_, &smarthome::ui::RulesAndSettingsWidget::refreshRulesRequested,
+            apiClient_, &smarthome::net::ApiClient::getRules);
+    connect(rulesSettingsWidget_, &smarthome::ui::RulesAndSettingsWidget::addRuleRequested,
+            apiClient_, &smarthome::net::ApiClient::addRule);
+    connect(rulesSettingsWidget_, &smarthome::ui::RulesAndSettingsWidget::toggleRuleRequested,
+            apiClient_, &smarthome::net::ApiClient::toggleRule);
+    connect(rulesSettingsWidget_, &smarthome::ui::RulesAndSettingsWidget::deleteRuleRequested,
+            apiClient_, &smarthome::net::ApiClient::deleteRule);
+    connect(rulesSettingsWidget_, &smarthome::ui::RulesAndSettingsWidget::gatewayUrlApplyRequested,
+            this, &MainWindow::onGatewayUrlApplyRequested);
+    connect(rulesSettingsWidget_, &smarthome::ui::RulesAndSettingsWidget::invalidGatewayUrlEntered,
+            this, [this](const QString &msg) {
+                showAlertBanner(msg);
+                statusBar()->showMessage(msg, 5000);
+            });
+
     connect(ui->mainTabWidget, &QTabWidget::currentChanged, this, [this](int idx) {
-        if (ui->mainTabWidget->widget(idx) == ui->analyticsTab) {
+        QWidget *tab = ui->mainTabWidget->widget(idx);
+        if (tab == ui->analyticsTab) {
             analyticsWidget_->requestRefresh();
+        } else if (tab == ui->rulesSettingsTab) {
+            apiClient_->getRules();
+            apiClient_->getHealth();
         }
     });
 
@@ -165,9 +214,32 @@ void MainWindow::setupConnections() {
 void MainWindow::startGatewaySync() {
     apiClient_->getDevices();
     apiClient_->getHealth();
+    apiClient_->getRules();
     analyticsWidget_->requestRefresh();
     healthPollTimer_->start(healthPollIntervalMs_);
     wsClient_->connectToGateway();
+}
+
+void MainWindow::onGatewayUrlApplyRequested(const QUrl &gatewayOrigin) {
+    QUrl restUrl = gatewayOrigin;
+    restUrl.setPath(QStringLiteral("/api/v1"));
+
+    QUrl wsUrl = gatewayOrigin;
+    wsUrl.setScheme(gatewayOrigin.scheme().toLower() == QStringLiteral("https")
+                        ? QStringLiteral("wss")
+                        : QStringLiteral("ws"));
+    wsUrl.setPath(QStringLiteral("/ws/telemetry"));
+
+    hideAlertBanner();
+    apiClient_->setBaseUrl(restUrl);
+    wsClient_->connectToGateway(wsUrl);
+
+    apiClient_->getDevices();
+    apiClient_->getHealth();
+    apiClient_->getRules();
+    analyticsWidget_->requestRefresh();
+
+    statusBar()->showMessage(tr("URL шлюза обновлён: %1").arg(gatewayOrigin.toString()), 4000);
 }
 
 void MainWindow::onHealthReceived(const smarthome::net::HealthStatus &health) {
@@ -182,6 +254,8 @@ void MainWindow::onHealthReceived(const smarthome::net::HealthStatus &health) {
     } else {
         updateBadgeState(mqttStatusLabel_, tr("MQTT: Отключён"), QStringLiteral("error"));
     }
+
+    rulesSettingsWidget_->setHealthStatus(health);
 }
 
 void MainWindow::onCommandSent(const smarthome::net::CommandResult &result) {
@@ -192,6 +266,8 @@ void MainWindow::onCommandSent(const smarthome::net::CommandResult &result) {
 }
 
 void MainWindow::onApiRequestFailed(const QString &endpoint, int httpStatus, const QString &errorMessage) {
+    rulesSettingsWidget_->onApiError(endpoint, httpStatus, errorMessage);
+
     if (httpStatus == 503) {
         const QString msg = tr("Нет связи с MQTT-брокером: команда не доставлена");
         showAlertBanner(msg);
@@ -205,6 +281,7 @@ void MainWindow::onApiRequestFailed(const QString &endpoint, int httpStatus, con
     if (endpoint == QStringLiteral("/health") || httpStatus == 0) {
         updateBadgeState(gatewayStatusLabel_, tr("Шлюз: Offline"), QStringLiteral("error"));
         updateBadgeState(mqttStatusLabel_, tr("MQTT: Неизвестно"), QStringLiteral("warn"));
+        rulesSettingsWidget_->setGatewayOffline();
     }
     statusBar()->showMessage(tr("Ошибка %1: %2").arg(endpoint, errorMessage), 5000);
 }
