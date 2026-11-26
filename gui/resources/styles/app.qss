@@ -267,3 +267,109 @@ QTableWidget#analyticsEventsTable QHeaderView::section {
     border: none;
     border-bottom: 1px solid #e5e7eb;
 }
+
+QGroupBox#rulesSectionGroup,
+QGroupBox#settingsSectionGroup {
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-top: 12px;
+    padding: 14px 12px 12px 12px;
+    font-weight: 700;
+    color: #111827;
+}
+
+QGroupBox#rulesSectionGroup::title,
+QGroupBox#settingsSectionGroup::title {
+    subcontrol-origin: margin;
+    left: 12px;
+    padding: 0 6px;
+    background-color: #ffffff;
+}
+
+QLabel#rulesSummaryLabel {
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+}
+
+QPushButton#addRuleButton,
+QPushButton#applyGatewayUrlButton,
+QPushButton#addRuleCreateButton {
+    background-color: #2563eb;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-weight: 600;
+}
+
+QPushButton#addRuleButton:hover,
+QPushButton#applyGatewayUrlButton:hover,
+QPushButton#addRuleCreateButton:hover {
+    background-color: #1d4ed8;
+}
+
+QPushButton#refreshRulesButton {
+    background-color: #f3f4f6;
+    color: #1f2937;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-weight: 600;
+}
+
+QPushButton#refreshRulesButton:hover {
+    background-color: #e5e7eb;
+}
+
+QPushButton#deleteRuleButton {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+    border-radius: 5px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QPushButton#deleteRuleButton:hover {
+    background-color: #fecaca;
+}
+
+QLineEdit#gatewayUrlEdit,
+QLineEdit#addRuleIdEdit {
+    background-color: #ffffff;
+    color: #111827;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 5px 8px;
+}
+
+QTableWidget#rulesTable {
+    background-color: #ffffff;
+    alternate-background-color: #f9fafb;
+    color: #111827;
+    gridline-color: #e5e7eb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+}
+
+QTableWidget#rulesTable QHeaderView::section {
+    background-color: #f3f4f6;
+    color: #374151;
+    font-weight: 600;
+    padding: 6px;
+    border: none;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+QLabel#addRuleErrorLabel {
+    background-color: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
