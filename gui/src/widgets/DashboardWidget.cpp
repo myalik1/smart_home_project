@@ -44,6 +44,7 @@ DashboardWidget::DashboardWidget(QWidget *parent)
     , cardsGrid_(new QGridLayout(gridHost_)) {
     summaryLabel_->setObjectName(QStringLiteral("dashboardSummary"));
     refreshButton_->setObjectName(QStringLiteral("refreshDevicesButton"));
+    gridHost_->setObjectName(QStringLiteral("dashboardGridHost"));
 
     connect(refreshButton_, &QPushButton::clicked, this, &DashboardWidget::refreshRequested);
 
@@ -57,6 +58,7 @@ DashboardWidget::DashboardWidget(QWidget *parent)
     cardsGrid_->setAlignment(Qt::AlignTop | Qt::AlignLeft);
 
     auto *scrollArea = new QScrollArea(this);
+    scrollArea->setObjectName(QStringLiteral("dashboardScrollArea"));
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
     scrollArea->setWidget(gridHost_);
@@ -126,6 +128,8 @@ DeviceCardWidget *DashboardWidget::getOrCreateCard(const QString &deviceName, co
         return existing;
     }
     auto *card = new DeviceCardWidget(deviceName, deviceType, gridHost_);
+    connect(card, &DeviceCardWidget::commandRequested,
+            this, &DashboardWidget::commandRequested);
     cardsByName_.insert(deviceName, card);
     return card;
 }

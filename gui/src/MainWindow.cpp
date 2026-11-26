@@ -8,8 +8,11 @@
 #include <QChart>
 #include <QChartView>
 #include <QFile>
+#include <QFrame>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineSeries>
+#include <QPushButton>
 #include <QStatusBar>
 #include <QStyle>
 #include <QTimer>
@@ -32,12 +35,16 @@ MainWindow::MainWindow(const QUrl &restBaseUrl,
     , dashboardWidget_(new smarthome::ui::DashboardWidget(this))
     , chartView_(nullptr)
     , healthPollTimer_(new QTimer(this))
+    , alertBanner_(new QFrame(this))
+    , alertLabel_(new QLabel(alertBanner_))
+    , alertCloseButton_(new QPushButton(tr("Закрыть"), alertBanner_))
     , gatewayStatusLabel_(new QLabel(this))
     , mqttStatusLabel_(new QLabel(this))
     , wsStatusLabel_(new QLabel(this))
     , healthPollIntervalMs_(qMax(500, healthPollIntervalMs)) {
     ui->setupUi(this);
     loadStylesheet();
+    setupAlertBanner();
     setupDashboardTab();
     setupStatusBarIndicators();
     setupTelemetryPreviewChart();
@@ -59,6 +66,31 @@ QString MainWindow::mqttStatusText() const {
 
 QString MainWindow::wsStatusText() const {
     return wsStatusLabel_->text();
+}
+
+bool MainWindow::isAlertBannerVisible() const {
+    return !alertBanner_->isHidden();
+}
+
+QString MainWindow::alertBannerText() const {
+    return alertLabel_->text();
+}
+
+void MainWindow::setupAlertBanner() {
+    alertBanner_->setObjectName(QStringLiteral("alertBanner"));
+    alertLabel_->setObjectName(QStringLiteral("alertBannerLabel"));
+    alertLabel_->setWordWrap(true);
+    alertCloseButton_->setObjectName(QStringLiteral("alertBannerClose"));
+
+    auto *bannerLayout = new QHBoxLayout(alertBanner_);
+    bannerLayout->setContentsMargins(12, 8, 12, 8);
+    bannerLayout->addWidget(alertLabel_, 1);
+    bannerLayout->addWidget(alertCloseButton_);
+
+    connect(alertCloseButton_, &QPushButton::clicked, this, &MainWindow::hideAlertBanner);
+
+    alertBanner_->hide();
+    ui->verticalLayout->insertWidget(1, alertBanner_);
 }
 
 void MainWindow::setupDashboardTab() {
@@ -104,11 +136,15 @@ void MainWindow::setupConnections() {
             dashboardWidget_, &smarthome::ui::DashboardWidget::setDevices);
     connect(apiClient_, &smarthome::net::ApiClient::healthReceived,
             this, &MainWindow::onHealthReceived);
+    connect(apiClient_, &smarthome::net::ApiClient::commandSent,
+            this, &MainWindow::onCommandSent);
     connect(apiClient_, &smarthome::net::ApiClient::requestFailed,
             this, &MainWindow::onApiRequestFailed);
 
     connect(dashboardWidget_, &smarthome::ui::DashboardWidget::refreshRequested,
             apiClient_, &smarthome::net::ApiClient::getDevices);
+    connect(dashboardWidget_, &smarthome::ui::DashboardWidget::commandRequested,
+            apiClient_, &smarthome::net::ApiClient::sendCommand);
 
     connect(wsClient_, &smarthome::net::WsClient::telemetryReceived,
             dashboardWidget_, &smarthome::ui::DashboardWidget::updateTelemetry);
@@ -138,12 +174,30 @@ void MainWindow::onHealthReceived(const smarthome::net::HealthStatus &health) {
 
     if (health.mqttConnected) {
         updateBadgeState(mqttStatusLabel_, tr("MQTT: Подключён"), QStringLiteral("ok"));
+        hideAlertBanner();
     } else {
         updateBadgeState(mqttStatusLabel_, tr("MQTT: Отключён"), QStringLiteral("error"));
     }
 }
 
+void MainWindow::onCommandSent(const smarthome::net::CommandResult &result) {
+    hideAlertBanner();
+    const QString cmd = result.payload.value(QStringLiteral("command")).toString();
+    statusBar()->showMessage(
+        tr("Команда %1 отправлена на %2").arg(cmd, result.deviceName), 3000);
+}
+
 void MainWindow::onApiRequestFailed(const QString &endpoint, int httpStatus, const QString &errorMessage) {
+    if (httpStatus == 503) {
+        const QString msg = tr("Нет связи с MQTT-брокером: команда не доставлена");
+        showAlertBanner(msg);
+        statusBar()->showMessage(msg, 6000);
+        if (endpoint != QStringLiteral("/health")) {
+            updateBadgeState(mqttStatusLabel_, tr("MQTT: Отключён"), QStringLiteral("error"));
+            return;
+        }
+    }
+
     if (endpoint == QStringLiteral("/health") || httpStatus == 0) {
         updateBadgeState(gatewayStatusLabel_, tr("Шлюз: Offline"), QStringLiteral("error"));
         updateBadgeState(mqttStatusLabel_, tr("MQTT: Неизвестно"), QStringLiteral("warn"));
@@ -161,6 +215,17 @@ void MainWindow::onWsDisconnected() {
 
 void MainWindow::onWsReconnecting(int attempt, int /*delayMs*/) {
     updateBadgeState(wsStatusLabel_, tr("WS: Повтор #%1").arg(attempt), QStringLiteral("warn"));
+}
+
+void MainWindow::showAlertBanner(const QString &message) {
+    alertLabel_->setText(message);
+    alertBanner_->show();
+}
+
+void MainWindow::hideAlertBanner() {
+    if (!alertBanner_->isHidden()) {
+        alertBanner_->hide();
+    }
 }
 
 void MainWindow::updateBadgeState(QLabel *label, const QString &text, const QString &state) {

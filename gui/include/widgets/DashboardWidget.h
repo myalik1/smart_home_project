@@ -36,6 +36,7 @@ public slots:
 
 signals:
     void refreshRequested();
+    void commandRequested(const QString &deviceName, const smarthome::net::CommandRequest &command);
 
 private:
     void relayoutCards();

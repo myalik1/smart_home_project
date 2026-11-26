@@ -7,7 +7,9 @@
 #include <QUrl>
 
 class QChartView;
+class QFrame;
 class QLabel;
+class QPushButton;
 class QTimer;
 
 namespace smarthome::net {
@@ -43,20 +45,26 @@ public:
     QString gatewayStatusText() const;
     QString mqttStatusText() const;
     QString wsStatusText() const;
+    bool isAlertBannerVisible() const;
+    QString alertBannerText() const;
 
 private slots:
     void onHealthReceived(const smarthome::net::HealthStatus &health);
+    void onCommandSent(const smarthome::net::CommandResult &result);
     void onApiRequestFailed(const QString &endpoint, int httpStatus, const QString &errorMessage);
     void onWsConnected();
     void onWsDisconnected();
     void onWsReconnecting(int attempt, int delayMs);
 
 private:
+    void setupAlertBanner();
     void setupDashboardTab();
     void setupStatusBarIndicators();
     void setupTelemetryPreviewChart();
     void setupConnections();
     void startGatewaySync();
+    void showAlertBanner(const QString &message);
+    void hideAlertBanner();
     void loadStylesheet();
 
     static void updateBadgeState(QLabel *label, const QString &text, const QString &state);
@@ -67,6 +75,10 @@ private:
     smarthome::ui::DashboardWidget *dashboardWidget_;
     QChartView *chartView_;
     QTimer *healthPollTimer_;
+
+    QFrame *alertBanner_;
+    QLabel *alertLabel_;
+    QPushButton *alertCloseButton_;
 
     QLabel *gatewayStatusLabel_;
     QLabel *mqttStatusLabel_;
