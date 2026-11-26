@@ -1,16 +1,24 @@
 #include "MainWindow.h"
+#include "widgets/AddRuleDialog.h"
 #include "widgets/AnalyticsWidget.h"
 #include "widgets/DashboardWidget.h"
 #include "widgets/DeviceCardWidget.h"
+#include "widgets/RulesAndSettingsWidget.h"
 
+#include <QApplication>
 #include <QChart>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDateTimeEdit>
 #include <QDoubleSpinBox>
 #include <QHash>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLabel>
+#include <QLineEdit>
 #include <QLineSeries>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QSlider>
@@ -18,6 +26,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTest>
+#include <QTimer>
 #include <QWebSocket>
 #include <QWebSocketServer>
 
@@ -579,6 +588,175 @@ private slots:
         QVERIFY(primarySeries != nullptr);
         QCOMPARE(primarySeries->count(), 2);
         QTRY_COMPARE_WITH_TIMEOUT(analytics->eventsTable()->rowCount(), 2, 2000);
+    }
+
+    void testRulesCrud409ConflictDiagnosticsAndUrlSwitch() {
+        QJsonArray rulesArray = QJsonArray{
+            QJsonObject{
+                {QStringLiteral("id"), QStringLiteral("night_lamp_off")},
+                {QStringLiteral("type"), QStringLiteral("point")},
+                {QStringLiteral("enabled"), true},
+                {QStringLiteral("time"), QStringLiteral("23:30:00")},
+                {QStringLiteral("repeatDaily"), true},
+                {QStringLiteral("action"), QJsonObject{
+                    {QStringLiteral("device"), QStringLiteral("Lamp1")},
+                    {QStringLiteral("command"), QJsonObject{{QStringLiteral("command"), QStringLiteral("OFF")}}}
+                }}
+            }
+        };
+
+        auto makeRulesDoc = [&]() -> QByteArray {
+            return QJsonDocument(QJsonObject{{QStringLiteral("rules"), rulesArray}}).toJson(QJsonDocument::Compact);
+        };
+
+        TestGatewayServer server1([&](const QByteArray &method,
+                                      const QByteArray &target,
+                                      const QByteArray &body,
+                                      int &statusCode) -> QByteArray {
+            if (method == "GET" && target == "/api/v1/devices") {
+                statusCode = 200;
+                return R"([{"deviceName":"Lamp1","deviceType":"Lamp","topic":"home/lamp1","isOnline":true}])";
+            }
+            if (method == "GET" && target == "/api/v1/health") {
+                statusCode = 200;
+                return R"({"status":"ok","version":"1.0.0","mqtt_broker":"localhost:1883","mqtt_connected":true,"sqlite_db_path":"data/smart_home.db","sqlite_db_exists":true,"telemetry_records_count":321,"rules_config_path":"data/rules.json","registered_devices_count":5,"online_devices":["Lamp1"],"active_ws_clients":1})";
+            }
+            if (method == "GET" && target.contains("/history")) {
+                statusCode = 200;
+                return "[]";
+            }
+            if (method == "GET" && target == "/api/v1/rules") {
+                statusCode = 200;
+                return makeRulesDoc();
+            }
+            if (method == "POST" && target == "/api/v1/rules/items") {
+                const QJsonObject newRule = QJsonDocument::fromJson(body).object();
+                const QString newId = newRule.value(QStringLiteral("id")).toString();
+                for (const QJsonValue &existing : rulesArray) {
+                    if (existing.toObject().value(QStringLiteral("id")).toString() == newId) {
+                        statusCode = 409;
+                        return QStringLiteral(R"({"detail":"Rule with id '%1' already exists."})").arg(newId).toUtf8();
+                    }
+                }
+                rulesArray.append(newRule);
+                statusCode = 201;
+                return QJsonDocument(newRule).toJson(QJsonDocument::Compact);
+            }
+            if (method == "PATCH" && target.startsWith("/api/v1/rules/items/")) {
+                const QString id = QString::fromUtf8(target.mid(20));
+                const bool enabled = QJsonDocument::fromJson(body).object().value(QStringLiteral("enabled")).toBool();
+                for (int i = 0; i < rulesArray.size(); ++i) {
+                    QJsonObject obj = rulesArray.at(i).toObject();
+                    if (obj.value(QStringLiteral("id")).toString() == id) {
+                        obj.insert(QStringLiteral("enabled"), enabled);
+                        rulesArray[i] = obj;
+                        statusCode = 200;
+                        return QJsonDocument(obj).toJson(QJsonDocument::Compact);
+                    }
+                }
+                statusCode = 404;
+                return R"({"detail":"Not found"})";
+            }
+            if (method == "DELETE" && target.startsWith("/api/v1/rules/items/")) {
+                const QString id = QString::fromUtf8(target.mid(20));
+                for (int i = 0; i < rulesArray.size(); ++i) {
+                    if (rulesArray.at(i).toObject().value(QStringLiteral("id")).toString() == id) {
+                        rulesArray.removeAt(i);
+                        statusCode = 200;
+                        return makeRulesDoc();
+                    }
+                }
+                statusCode = 404;
+                return R"({"detail":"Not found"})";
+            }
+            statusCode = 404;
+            return R"({"detail":"Not found"})";
+        });
+
+        MainWindow window(server1.restUrl(), server1.wsUrl(), 5000);
+        auto *rulesTab = window.rulesAndSettingsWidget();
+        QVERIFY(rulesTab != nullptr);
+
+        // 1. Initial GET /rules + GET /health diagnostics
+        QTRY_COMPARE_WITH_TIMEOUT(rulesTab->rulesTable()->rowCount(), 1, 2000);
+        QCOMPARE(rulesTab->rulesTable()->item(0, 0)->text(), QStringLiteral("night_lamp_off"));
+        QVERIFY(rulesTab->diagDbPathText().contains(QStringLiteral("data/smart_home.db")));
+        QCOMPARE(rulesTab->diagRecordsCountText(), QStringLiteral("321"));
+        QVERIFY(rulesTab->diagMqttText().contains(QStringLiteral("Подключён")));
+
+        // 2. Toggle enabled checkbox -> PATCH /api/v1/rules/items/{rule_id}
+        QCheckBox *check = rulesTab->rowEnabledCheckBox(0);
+        QVERIFY(check != nullptr);
+        QCOMPARE(check->isChecked(), true);
+        check->click();
+        QTRY_COMPARE_WITH_TIMEOUT(rulesArray.at(0).toObject().value(QStringLiteral("enabled")).toBool(), false, 2000);
+
+        // 3. AddRuleDialog: test 409 Conflict then valid creation
+        bool dialogVerified = false;
+        QTimer::singleShot(30, &window, [&]() {
+            auto *dlg = rulesTab->activeAddRuleDialog();
+            QVERIFY(dlg != nullptr);
+            dlg->idEdit()->setText(QStringLiteral("night_lamp_off"));
+            dlg->typeCombo()->setCurrentText(QStringLiteral("periodic"));
+            dlg->createButton()->click();
+
+            QTRY_VERIFY_WITH_TIMEOUT(dlg->errorLabel()->isVisible(), 2000);
+            QVERIFY(dlg->errorLabel()->text().contains(QStringLiteral("409")));
+            QVERIFY(dlg->isVisible());
+
+            dlg->idEdit()->setText(QStringLiteral("periodic_lamp_ping"));
+            dlg->createButton()->click();
+            dialogVerified = true;
+        });
+        rulesTab->addRuleButton()->click();
+        QVERIFY(dialogVerified);
+        QTRY_COMPARE_WITH_TIMEOUT(rulesTab->rulesTable()->rowCount(), 2, 2000);
+        QCOMPARE(rulesTab->rulesTable()->item(1, 0)->text(), QStringLiteral("periodic_lamp_ping"));
+
+        // 4. Delete rule with QMessageBox confirmation -> DELETE /api/v1/rules/items/{rule_id}
+        QPushButton *delBtn = rulesTab->rowDeleteButton(1);
+        QVERIFY(delBtn != nullptr);
+        QTimer::singleShot(30, &window, [&]() {
+            if (auto *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget())) {
+                box->button(QMessageBox::Yes)->click();
+            }
+        });
+        delBtn->click();
+        QTRY_COMPARE_WITH_TIMEOUT(rulesTab->rulesTable()->rowCount(), 1, 2000);
+
+        // 5. Switch gateway URL to a second server
+        TestGatewayServer server2([&](const QByteArray &method,
+                                      const QByteArray &target,
+                                      const QByteArray &,
+                                      int &statusCode) -> QByteArray {
+            if (method == "GET" && target == "/api/v1/devices") {
+                statusCode = 200;
+                return "[]";
+            }
+            if (method == "GET" && target == "/api/v1/health") {
+                statusCode = 200;
+                return R"({"status":"ok","version":"2.0.0","mqtt_broker":"remote:1883","mqtt_connected":true,"sqlite_db_path":"remote.db","sqlite_db_exists":true,"telemetry_records_count":999,"rules_config_path":"remote_rules.json","registered_devices_count":0,"online_devices":[],"active_ws_clients":1})";
+            }
+            if (method == "GET" && target == "/api/v1/rules") {
+                statusCode = 200;
+                return R"({"rules":[]})";
+            }
+            if (method == "GET" && target.contains("/history")) {
+                statusCode = 200;
+                return "[]";
+            }
+            statusCode = 404;
+            return R"({"detail":"Not found"})";
+        });
+
+        QUrl origin2 = server2.restUrl();
+        origin2.setPath(QString());
+        rulesTab->gatewayUrlEdit()->setText(origin2.toString());
+        rulesTab->applyGatewayUrlButton()->click();
+
+        QTRY_COMPARE_WITH_TIMEOUT(rulesTab->diagRecordsCountText(), QStringLiteral("999"), 2000);
+        QTRY_COMPARE_WITH_TIMEOUT(rulesTab->rulesTable()->rowCount(), 0, 2000);
+        QVERIFY(window.gatewayStatusText().contains(QStringLiteral("v2.0.0")));
     }
 };
 
