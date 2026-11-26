@@ -203,3 +203,52 @@ QLabel#statusBadge[statusState="error"] {
     background-color: #fee2e2;
     color: #991b1b;
 }
+
+QComboBox#analyticsDeviceCombo,
+QComboBox#analyticsPresetCombo,
+QDateTimeEdit#analyticsStartDateTime,
+QDateTimeEdit#analyticsEndDateTime {
+    background-color: #ffffff;
+    color: #111827;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 4px 8px;
+}
+
+QPushButton#analyticsRefreshButton {
+    background-color: #2563eb;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-weight: 600;
+}
+
+QPushButton#analyticsRefreshButton:hover {
+    background-color: #1d4ed8;
+}
+
+QLabel#analyticsChartStatus,
+QLabel#analyticsTableTitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+}
+
+QTableWidget#analyticsEventsTable {
+    background-color: #ffffff;
+    alternate-background-color: #f9fafb;
+    color: #111827;
+    gridline-color: #e5e7eb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+}
+
+QTableWidget#analyticsEventsTable QHeaderView::section {
+    background-color: #f3f4f6;
+    color: #374151;
+    font-weight: 600;
+    padding: 6px;
+    border: none;
+    border-bottom: 1px solid #e5e7eb;
+}
