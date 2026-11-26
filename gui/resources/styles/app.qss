@@ -140,12 +140,38 @@ QPushButton#powerOffButton[activePower="true"] {
 }
 
 QDoubleSpinBox#targetTempSpinBox,
-QComboBox#thermostatModeCombo {
+QComboBox#thermostatModeCombo,
+QComboBox#analyticsDeviceCombo,
+QComboBox#analyticsPresetCombo,
+QDateTimeEdit#analyticsStartDateTime,
+QDateTimeEdit#analyticsEndDateTime {
     background-color: #ffffff;
     color: #111827;
     border: 1px solid #d1d5db;
     border-radius: 6px;
     padding: 4px 8px;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #ffffff;
+    color: #111827;
+    border: 1px solid #d1d5db;
+    selection-background-color: #2563eb;
+    selection-color: #ffffff;
+    outline: 0;
+}
+
+QComboBox QAbstractItemView::item {
+    min-height: 24px;
+    padding: 4px 8px;
+    color: #111827;
+    background-color: #ffffff;
+}
+
+QComboBox QAbstractItemView::item:selected,
+QComboBox QAbstractItemView::item:hover {
+    background-color: #2563eb;
+    color: #ffffff;
 }
 
 QLabel#deviceCardUpdatedAt {
@@ -202,17 +228,6 @@ QLabel#statusBadge[statusState="warn"] {
 QLabel#statusBadge[statusState="error"] {
     background-color: #fee2e2;
     color: #991b1b;
-}
-
-QComboBox#analyticsDeviceCombo,
-QComboBox#analyticsPresetCombo,
-QDateTimeEdit#analyticsStartDateTime,
-QDateTimeEdit#analyticsEndDateTime {
-    background-color: #ffffff;
-    color: #111827;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    padding: 4px 8px;
 }
 
 QPushButton#analyticsRefreshButton {
