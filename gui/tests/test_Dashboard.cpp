@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "net/WsClient.h"
 #include "widgets/AddRuleDialog.h"
 #include "widgets/AnalyticsWidget.h"
 #include "widgets/DashboardWidget.h"
@@ -45,16 +46,39 @@ public:
                                                  const QByteArray &body,
                                                  int &statusCode)>;
 
-    explicit TestGatewayServer(HttpHandler handler, QObject *parent = nullptr)
+    explicit TestGatewayServer(HttpHandler handler,
+                               quint16 httpPort = 0,
+                               quint16 wsPort = 0,
+                               bool autoStart = true,
+                               QObject *parent = nullptr)
         : QObject(parent)
         , httpServer_(new QTcpServer(this))
         , wsServer_(new QWebSocketServer(QStringLiteral("TestWs"), QWebSocketServer::NonSecureMode, this))
         , handler_(std::move(handler)) {
         connect(httpServer_, &QTcpServer::newConnection, this, &TestGatewayServer::onHttpConnection);
         connect(wsServer_, &QWebSocketServer::newConnection, this, &TestGatewayServer::onWsConnection);
-        httpServer_->listen(QHostAddress::LocalHost, 0);
-        wsServer_->listen(QHostAddress::LocalHost, 0);
+        if (autoStart) {
+            start(httpPort, wsPort);
+        }
     }
+
+    bool start(quint16 httpPort = 0, quint16 wsPort = 0) {
+        const bool httpOk = httpServer_->isListening() || httpServer_->listen(QHostAddress::LocalHost, httpPort);
+        const bool wsOk = wsServer_->isListening() || wsServer_->listen(QHostAddress::LocalHost, wsPort);
+        return httpOk && wsOk;
+    }
+
+    void stop() {
+        httpServer_->close();
+        wsServer_->close();
+        const auto clientsCopy = wsClients_;
+        for (QWebSocket *client : clientsCopy) {
+            client->abort();
+        }
+    }
+
+    quint16 httpPort() const { return httpServer_->serverPort(); }
+    quint16 wsPort() const { return wsServer_->serverPort(); }
 
     QUrl restUrl() const {
         return QUrl(QStringLiteral("http://127.0.0.1:%1/api/v1").arg(httpServer_->serverPort()));
@@ -757,6 +781,83 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(rulesTab->diagRecordsCountText(), QStringLiteral("999"), 2000);
         QTRY_COMPARE_WITH_TIMEOUT(rulesTab->rulesTable()->rowCount(), 0, 2000);
         QVERIFY(window.gatewayStatusText().contains(QStringLiteral("v2.0.0")));
+    }
+
+    void testResilienceStartupOfflineGatewayRestartAndMosquitto503() {
+        bool mqttConnected = true;
+
+        // Reserve two free local ports, then close immediately so GUI starts while gateway is offline
+        TestGatewayServer server([&](const QByteArray &method,
+                                     const QByteArray &target,
+                                     const QByteArray &,
+                                     int &statusCode) -> QByteArray {
+            if (method == "GET" && target == "/api/v1/devices") {
+                statusCode = 200;
+                return R"([{"deviceName":"Lamp1","deviceType":"Lamp","topic":"home/lamp1","isOnline":true,"lastSeenMs":1762605000000,"telemetry":{"deviceName":"Lamp1","deviceType":"Lamp","isOn":false,"brightness":40}}])";
+            }
+            if (method == "GET" && target == "/api/v1/health") {
+                statusCode = 200;
+                return mqttConnected
+                    ? R"({"status":"ok","version":"1.0.0","mqtt_broker":"localhost:1883","mqtt_connected":true,"sqlite_db_path":"data/smart_home.db","sqlite_db_exists":true,"telemetry_records_count":5,"rules_config_path":"data/rules.json","registered_devices_count":1,"online_devices":["Lamp1"],"active_ws_clients":1})"
+                    : R"({"status":"ok","version":"1.0.0","mqtt_broker":"localhost:1883","mqtt_connected":false,"sqlite_db_path":"data/smart_home.db","sqlite_db_exists":true,"telemetry_records_count":5,"rules_config_path":"data/rules.json","registered_devices_count":1,"online_devices":[],"active_ws_clients":1})";
+            }
+            if (method == "GET" && target == "/api/v1/rules") {
+                statusCode = 200;
+                return R"({"rules":[{"id":"r_auto","type":"point","enabled":true,"time":"20:00:00","action":{"device":"Lamp1","command":{"command":"ON"}}}]})";
+            }
+            if (method == "GET" && target.contains("/history")) {
+                statusCode = 200;
+                return "[]";
+            }
+            if (method == "POST" && target == "/api/v1/devices/Lamp1/command") {
+                if (!mqttConnected) {
+                    statusCode = 503;
+                    return R"({"detail":"MQTT broker is currently unavailable. Command cannot be delivered."})";
+                }
+                statusCode = 200;
+                return R"({"status":"sent","deviceName":"Lamp1","topic":"home/lamp1/set","payload":{"command":"ON"}})";
+            }
+            statusCode = 404;
+            return R"({"detail":"Not found"})";
+        });
+
+        const quint16 httpPort = server.httpPort();
+        const quint16 wsPort = server.wsPort();
+        const QUrl restUrl = server.restUrl();
+        const QUrl wsUrl = server.wsUrl();
+        server.stop();
+
+        // 1. Start GUI while gateway is OFF -> status Offline, 0 devices, no crash
+        MainWindow window(restUrl, wsUrl, 500);
+        window.wsClient()->setReconnectIntervals(60, 150);
+
+        QTRY_VERIFY_WITH_TIMEOUT(window.gatewayStatusText().contains(QStringLiteral("Offline")), 5000);
+        QCOMPARE(window.dashboardWidget()->deviceCount(), 0);
+
+        // 2. Start gateway later -> health poll & WS reconnect auto-recover devices, rules, and WS
+        QVERIFY(server.start(httpPort, wsPort));
+        QTRY_VERIFY_WITH_TIMEOUT(window.gatewayStatusText().contains(QStringLiteral("Online")), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(window.wsStatusText().contains(QStringLiteral("Подключён")), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(window.dashboardWidget()->deviceCount(), 1, 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(window.rulesAndSettingsWidget()->rulesCount(), 1, 5000);
+
+        // 3. Gateway restarts mid-session -> WS drops then reconnects automatically
+        server.stop();
+        QTRY_VERIFY_WITH_TIMEOUT(window.gatewayStatusText().contains(QStringLiteral("Offline")), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(!window.wsStatusText().contains(QStringLiteral("Подключён")), 5000);
+
+        mqttConnected = false;
+        QVERIFY(server.start(httpPort, wsPort));
+        QTRY_VERIFY_WITH_TIMEOUT(window.gatewayStatusText().contains(QStringLiteral("Online")), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(window.wsStatusText().contains(QStringLiteral("Подключён")), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(window.mqttStatusText().contains(QStringLiteral("Отключён")), 5000);
+
+        // 4. Mosquitto disconnected while sending command -> 503 alert banner appears
+        auto *lampCard = window.dashboardWidget()->cardForDevice(QStringLiteral("Lamp1"));
+        QVERIFY(lampCard != nullptr);
+        lampCard->onButton()->click();
+        QTRY_VERIFY_WITH_TIMEOUT(window.isAlertBannerVisible(), 3000);
+        QVERIFY(window.alertBannerText().contains(QStringLiteral("Нет связи с MQTT-брокером")));
     }
 };
 
