@@ -1,11 +1,17 @@
 #include "widgets/DeviceCardWidget.h"
 
+#include <QComboBox>
 #include <QDateTime>
+#include <QDoubleSpinBox>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLayout>
 #include <QLayoutItem>
+#include <QPushButton>
+#include <QSlider>
 #include <QStyle>
+#include <QTimer>
 #include <QVBoxLayout>
 
 namespace smarthome::ui {
@@ -20,16 +26,24 @@ DeviceCardWidget::DeviceCardWidget(const QString &deviceName,
     , typeLabel_(new QLabel(formatDeviceTypeTitle(deviceType), this))
     , onlineBadgeLabel_(new QLabel(this))
     , updatedAtLabel_(new QLabel(tr("Обновление: нет данных"), this))
-    , metricsLayout_(new QGridLayout()) {
+    , metricsLayout_(new QGridLayout())
+    , controlsLayout_(new QVBoxLayout())
+    , sliderDebounceTimer_(new QTimer(this))
+    , tempDebounceTimer_(new QTimer(this)) {
     setObjectName(QStringLiteral("deviceCard"));
     setFrameShape(QFrame::StyledPanel);
-    setMinimumWidth(270);
+    setMinimumWidth(280);
 
     nameLabel_->setObjectName(QStringLiteral("deviceCardName"));
     typeLabel_->setObjectName(QStringLiteral("deviceCardType"));
     onlineBadgeLabel_->setObjectName(QStringLiteral("onlineBadge"));
     onlineBadgeLabel_->setAlignment(Qt::AlignCenter);
     updatedAtLabel_->setObjectName(QStringLiteral("deviceCardUpdatedAt"));
+
+    sliderDebounceTimer_->setSingleShot(true);
+    tempDebounceTimer_->setSingleShot(true);
+    connect(sliderDebounceTimer_, &QTimer::timeout, this, &DeviceCardWidget::dispatchLevelSliderCommand);
+    connect(tempDebounceTimer_, &QTimer::timeout, this, &DeviceCardWidget::dispatchTargetTempCommand);
 
     auto *headerLayout = new QHBoxLayout();
     auto *titleLayout = new QVBoxLayout();
@@ -40,21 +54,30 @@ DeviceCardWidget::DeviceCardWidget(const QString &deviceName,
     headerLayout->addLayout(titleLayout, 1);
     headerLayout->addWidget(onlineBadgeLabel_, 0, Qt::AlignTop);
 
-    metricsLayout_->setContentsMargins(0, 6, 0, 6);
+    metricsLayout_->setContentsMargins(0, 6, 0, 4);
     metricsLayout_->setHorizontalSpacing(12);
     metricsLayout_->setVerticalSpacing(4);
     metricsLayout_->setColumnStretch(0, 1);
     metricsLayout_->setColumnStretch(1, 0);
+
+    controlsLayout_->setContentsMargins(0, 6, 0, 2);
+    controlsLayout_->setSpacing(8);
 
     auto *rootLayout = new QVBoxLayout(this);
     rootLayout->setContentsMargins(14, 12, 14, 12);
     rootLayout->setSpacing(8);
     rootLayout->addLayout(headerLayout);
     rootLayout->addLayout(metricsLayout_);
+    rootLayout->addLayout(controlsLayout_);
     rootLayout->addWidget(updatedAtLabel_);
     rootLayout->addStretch(1);
 
     setOnlineState(false);
+    rebuildControlsIfNeeded();
+}
+
+void DeviceCardWidget::setDebounceIntervalMs(int intervalMs) {
+    debounceIntervalMs_ = qMax(20, intervalMs);
 }
 
 QString DeviceCardWidget::onlineBadgeText() const {
@@ -85,13 +108,15 @@ void DeviceCardWidget::updateFromStatus(const smarthome::net::DeviceStatus &stat
     }
 
     setOnlineState(status.isOnline);
+    rebuildControlsIfNeeded();
 
     if (status.telemetry.has_value()) {
         updateTimestampLabel(*status.telemetry);
         rebuildMetrics(*status.telemetry);
+        syncControlsFromTelemetry(*status.telemetry);
     } else {
         updatedAtLabel_->setText(tr("Обновление: нет данных"));
-        clearMetricsLayout();
+        clearLayout(metricsLayout_);
         currentMetrics_.clear();
         auto *emptyLabel = new QLabel(tr("Ожидание телеметрии..."), this);
         emptyLabel->setObjectName(QStringLiteral("metricValue"));
@@ -105,8 +130,10 @@ void DeviceCardWidget::applyLiveTelemetry(const smarthome::net::DeviceTelemetry 
         typeLabel_->setText(formatDeviceTypeTitle(deviceType_));
     }
     setOnlineState(true);
+    rebuildControlsIfNeeded();
     updateTimestampLabel(telemetry);
     rebuildMetrics(telemetry);
+    syncControlsFromTelemetry(telemetry);
 }
 
 void DeviceCardWidget::setOnlineState(bool online) {
@@ -128,7 +155,7 @@ void DeviceCardWidget::updateTimestampLabel(const smarthome::net::DeviceTelemetr
 }
 
 void DeviceCardWidget::rebuildMetrics(const smarthome::net::DeviceTelemetry &telemetry) {
-    clearMetricsLayout();
+    clearLayout(metricsLayout_);
     currentMetrics_ = extractProfileMetrics(deviceType_, telemetry);
 
     int row = 0;
@@ -146,13 +173,228 @@ void DeviceCardWidget::rebuildMetrics(const smarthome::net::DeviceTelemetry &tel
     }
 }
 
-void DeviceCardWidget::clearMetricsLayout() {
-    while (QLayoutItem *item = metricsLayout_->takeAt(0)) {
+void DeviceCardWidget::rebuildControlsIfNeeded() {
+    if (controlsBuiltForType_ == deviceType_) {
+        return;
+    }
+    controlsBuiltForType_ = deviceType_;
+
+    sliderDebounceTimer_->stop();
+    tempDebounceTimer_->stop();
+    clearLayout(controlsLayout_);
+    onButton_ = nullptr;
+    offButton_ = nullptr;
+    levelSlider_ = nullptr;
+    levelValueLabel_ = nullptr;
+    levelCommandName_.clear();
+    targetTempSpinBox_ = nullptr;
+    modeComboBox_ = nullptr;
+
+    if (!isActuatorType(deviceType_)) {
+        return;
+    }
+
+    auto *divider = new QFrame(this);
+    divider->setObjectName(QStringLiteral("cardDivider"));
+    divider->setFrameShape(QFrame::HLine);
+    divider->setFixedHeight(1);
+    controlsLayout_->addWidget(divider);
+
+    addPowerButtons();
+
+    if (deviceType_ == QStringLiteral("Lamp")) {
+        addLevelSliderControl(tr("Яркость"), QStringLiteral("SET_BRIGHTNESS"));
+    } else if (deviceType_ == QStringLiteral("Radiator")) {
+        addLevelSliderControl(tr("Клапан"), QStringLiteral("SET_VALVE_LEVEL"));
+    } else if (deviceType_ == QStringLiteral("Thermostat")) {
+        addThermostatControls();
+    }
+}
+
+void DeviceCardWidget::addPowerButtons() {
+    onButton_ = new QPushButton(tr("ВКЛ"), this);
+    onButton_->setObjectName(QStringLiteral("powerOnButton"));
+
+    offButton_ = new QPushButton(tr("ВЫКЛ"), this);
+    offButton_->setObjectName(QStringLiteral("powerOffButton"));
+
+    connect(onButton_, &QPushButton::clicked, this, [this]() {
+        emit commandRequested(deviceName_, smarthome::net::CommandRequest{
+            QStringLiteral("ON"), std::nullopt, std::nullopt});
+    });
+    connect(offButton_, &QPushButton::clicked, this, [this]() {
+        emit commandRequested(deviceName_, smarthome::net::CommandRequest{
+            QStringLiteral("OFF"), std::nullopt, std::nullopt});
+    });
+
+    auto *row = new QHBoxLayout();
+    row->setSpacing(8);
+    row->addWidget(onButton_);
+    row->addWidget(offButton_);
+    controlsLayout_->addLayout(row);
+}
+
+void DeviceCardWidget::addLevelSliderControl(const QString &labelText, const QString &commandName) {
+    levelCommandName_ = commandName;
+
+    auto *titleLabel = new QLabel(labelText, this);
+    titleLabel->setObjectName(QStringLiteral("controlLabel"));
+
+    levelValueLabel_ = new QLabel(QStringLiteral("0 %"), this);
+    levelValueLabel_->setObjectName(QStringLiteral("controlValueLabel"));
+    levelValueLabel_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+    auto *header = new QHBoxLayout();
+    header->addWidget(titleLabel);
+    header->addStretch(1);
+    header->addWidget(levelValueLabel_);
+
+    levelSlider_ = new QSlider(Qt::Horizontal, this);
+    levelSlider_->setObjectName(QStringLiteral("deviceLevelSlider"));
+    levelSlider_->setRange(0, 100);
+    levelSlider_->setSingleStep(5);
+    levelSlider_->setPageStep(10);
+
+    connect(levelSlider_, &QSlider::valueChanged, this, [this](int value) {
+        if (levelValueLabel_ != nullptr) {
+            levelValueLabel_->setText(QStringLiteral("%1 %").arg(value));
+        }
+        if (updatingControls_) {
+            return;
+        }
+        if (!levelSlider_->isSliderDown()) {
+            sliderDebounceTimer_->start(debounceIntervalMs_);
+        }
+    });
+
+    connect(levelSlider_, &QSlider::sliderReleased, this, [this]() {
+        if (updatingControls_) {
+            return;
+        }
+        sliderDebounceTimer_->stop();
+        dispatchLevelSliderCommand();
+    });
+
+    controlsLayout_->addLayout(header);
+    controlsLayout_->addWidget(levelSlider_);
+}
+
+void DeviceCardWidget::addThermostatControls() {
+    auto *grid = new QGridLayout();
+    grid->setHorizontalSpacing(8);
+    grid->setVerticalSpacing(6);
+
+    auto *tempLabel = new QLabel(tr("Цель, °C"), this);
+    tempLabel->setObjectName(QStringLiteral("controlLabel"));
+
+    targetTempSpinBox_ = new QDoubleSpinBox(this);
+    targetTempSpinBox_->setObjectName(QStringLiteral("targetTempSpinBox"));
+    targetTempSpinBox_->setRange(10.0, 35.0);
+    targetTempSpinBox_->setSingleStep(0.5);
+    targetTempSpinBox_->setDecimals(1);
+    targetTempSpinBox_->setSuffix(QStringLiteral(" °C"));
+
+    connect(targetTempSpinBox_, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double) {
+        if (updatingControls_) {
+            return;
+        }
+        tempDebounceTimer_->start(debounceIntervalMs_);
+    });
+
+    auto *modeLabel = new QLabel(tr("Режим"), this);
+    modeLabel->setObjectName(QStringLiteral("controlLabel"));
+
+    modeComboBox_ = new QComboBox(this);
+    modeComboBox_->setObjectName(QStringLiteral("thermostatModeCombo"));
+    modeComboBox_->addItems({QStringLiteral("OFF"), QStringLiteral("COOL"), QStringLiteral("HEAT")});
+
+    connect(modeComboBox_, &QComboBox::currentTextChanged, this, [this](const QString &mode) {
+        if (updatingControls_ || mode.isEmpty()) {
+            return;
+        }
+        emit commandRequested(deviceName_, smarthome::net::CommandRequest{
+            QStringLiteral("SET_MODE"), std::nullopt, mode});
+    });
+
+    grid->addWidget(tempLabel, 0, 0);
+    grid->addWidget(targetTempSpinBox_, 0, 1);
+    grid->addWidget(modeLabel, 1, 0);
+    grid->addWidget(modeComboBox_, 1, 1);
+    grid->setColumnStretch(0, 1);
+    grid->setColumnStretch(1, 1);
+    controlsLayout_->addLayout(grid);
+}
+
+void DeviceCardWidget::syncControlsFromTelemetry(const smarthome::net::DeviceTelemetry &telemetry) {
+    updatingControls_ = true;
+
+    if (onButton_ != nullptr && offButton_ != nullptr) {
+        onButton_->setProperty("activePower", telemetry.isOn);
+        offButton_->setProperty("activePower", !telemetry.isOn);
+        onButton_->style()->unpolish(onButton_);
+        onButton_->style()->polish(onButton_);
+        offButton_->style()->unpolish(offButton_);
+        offButton_->style()->polish(offButton_);
+    }
+
+    if (levelSlider_ != nullptr && !levelSlider_->isSliderDown() && !sliderDebounceTimer_->isActive()) {
+        const int targetLevel = (deviceType_ == QStringLiteral("Lamp"))
+            ? telemetry.brightness
+            : telemetry.currentValveLevel;
+        levelSlider_->setValue(qBound(0, targetLevel, 100));
+        if (levelValueLabel_ != nullptr) {
+            levelValueLabel_->setText(QStringLiteral("%1 %").arg(levelSlider_->value()));
+        }
+    }
+
+    if (targetTempSpinBox_ != nullptr && !targetTempSpinBox_->hasFocus() && !tempDebounceTimer_->isActive()) {
+        targetTempSpinBox_->setValue(qBound(10.0, telemetry.targetTemperature, 35.0));
+    }
+
+    if (modeComboBox_ != nullptr && !modeComboBox_->hasFocus()) {
+        const QString normalizedMode = telemetry.mode.trimmed().toUpper();
+        const int idx = modeComboBox_->findText(normalizedMode);
+        if (idx >= 0) {
+            modeComboBox_->setCurrentIndex(idx);
+        }
+    }
+
+    updatingControls_ = false;
+}
+
+void DeviceCardWidget::dispatchLevelSliderCommand() {
+    if (levelSlider_ == nullptr || levelCommandName_.isEmpty()) {
+        return;
+    }
+    emit commandRequested(deviceName_, smarthome::net::CommandRequest{
+        levelCommandName_, static_cast<double>(levelSlider_->value()), std::nullopt});
+}
+
+void DeviceCardWidget::dispatchTargetTempCommand() {
+    if (targetTempSpinBox_ == nullptr) {
+        return;
+    }
+    emit commandRequested(deviceName_, smarthome::net::CommandRequest{
+        QStringLiteral("SET_TEMPERATURE"), targetTempSpinBox_->value(), std::nullopt});
+}
+
+void DeviceCardWidget::clearLayout(QLayout *layout) {
+    while (QLayoutItem *item = layout->takeAt(0)) {
+        if (QLayout *childLayout = item->layout()) {
+            clearLayout(childLayout);
+        }
         if (QWidget *widget = item->widget()) {
             widget->deleteLater();
         }
         delete item;
     }
+}
+
+bool DeviceCardWidget::isActuatorType(const QString &deviceType) {
+    return deviceType == QStringLiteral("Lamp")
+        || deviceType == QStringLiteral("Plug")
+        || deviceType == QStringLiteral("Radiator")
+        || deviceType == QStringLiteral("Thermostat");
 }
 
 QVector<QPair<QString, QString>> DeviceCardWidget::extractProfileMetrics(
