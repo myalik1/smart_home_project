@@ -14,6 +14,7 @@
 #include <QLineSeries>
 #include <QPen>
 #include <QPushButton>
+#include <QSet>
 #include <QSplitter>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -123,6 +124,7 @@ AnalyticsWidget::AnalyticsWidget(QWidget *parent)
     setupChartAndTable(rootLayout);
 
     applyPresetRange(kPreset1Hour);
+    renderDeviceChart();
 }
 
 void AnalyticsWidget::setupFilterBar(QVBoxLayout *rootLayout) {
@@ -319,6 +321,48 @@ void AnalyticsWidget::setDeviceHistory(const QString &deviceName,
         return;
     }
 
+    currentDbDeviceName_ = deviceName;
+    dbDeviceHistory_ = history;
+    renderDeviceChart();
+}
+
+void AnalyticsWidget::setAllHistory(const QVector<smarthome::net::DeviceTelemetry> &history) {
+    dbAllHistory_ = history;
+    renderEventsTable();
+}
+
+void AnalyticsWidget::appendLiveTelemetry(const smarthome::net::DeviceTelemetry &telemetry) {
+    if (telemetry.deviceName.isEmpty() || telemetry.timestamp <= 0) {
+        return;
+    }
+
+    auto &devicePoints = liveHistoryByDevice_[telemetry.deviceName];
+    if (!devicePoints.isEmpty() && devicePoints.last().timestamp == telemetry.timestamp) {
+        devicePoints.last() = telemetry;
+    } else {
+        devicePoints.append(telemetry);
+        if (devicePoints.size() > kHistoryChartLimit) {
+            devicePoints.remove(0, devicePoints.size() - kHistoryChartLimit);
+        }
+    }
+
+    liveEventsFeed_.prepend(telemetry);
+    if (liveEventsFeed_.size() > kHistoryTableLimit) {
+        liveEventsFeed_.resize(kHistoryTableLimit);
+    }
+
+    if (telemetry.deviceName == selectedDeviceName()) {
+        const int presetMinutes = presetCombo_->currentData().toInt();
+        if (presetMinutes > 0) {
+            applyPresetRange(presetMinutes);
+        }
+        renderDeviceChart();
+    }
+    renderEventsTable();
+}
+
+void AnalyticsWidget::renderDeviceChart() {
+    const QString deviceName = selectedDeviceName();
     chart_->removeAllSeries();
     const auto oldAxes = chart_->axes();
     for (QAbstractAxis *axis : oldAxes) {
@@ -326,12 +370,51 @@ void AnalyticsWidget::setDeviceHistory(const QString &deviceName,
         delete axis;
     }
 
-    const QString devType = inferDeviceType(deviceName, history);
+    QVector<smarthome::net::DeviceTelemetry> merged;
+    QSet<qint64> seenTimestamps;
+
+    int dbCount = 0;
+    if (currentDbDeviceName_ == deviceName) {
+        for (const auto &pt : dbDeviceHistory_) {
+            if (pt.timestamp > 0 && !seenTimestamps.contains(pt.timestamp)) {
+                seenTimestamps.insert(pt.timestamp);
+                merged.append(pt);
+                ++dbCount;
+            }
+        }
+    }
+
+    const qint64 startTs = startTimestampMs();
+    const qint64 endTs = endTimestampMs();
+    const int presetMinutes = presetCombo_->currentData().toInt();
+
+    int liveCount = 0;
+    const auto &livePoints = liveHistoryByDevice_.value(deviceName);
+    for (const auto &pt : livePoints) {
+        if (pt.timestamp <= 0 || seenTimestamps.contains(pt.timestamp)) {
+            continue;
+        }
+        const bool withinRange = (presetMinutes > 0)
+            ? (pt.timestamp >= startTs)
+            : (pt.timestamp >= startTs && pt.timestamp <= endTs);
+        if (withinRange) {
+            seenTimestamps.insert(pt.timestamp);
+            merged.append(pt);
+            ++liveCount;
+        }
+    }
+
+    std::sort(merged.begin(), merged.end(), [](const auto &a, const auto &b) {
+        return a.timestamp < b.timestamp;
+    });
+
+    const QString devType = inferDeviceType(deviceName, merged);
     const SeriesSpec spec = chartSpecForType(devType);
 
-    if (history.isEmpty()) {
-        chart_->setTitle(tr("%1 — нет данных за выбранный интервал").arg(deviceName));
-        chartStatusLabel_->setText(tr("Точек на графике: 0 (%1)").arg(deviceName));
+    if (merged.isEmpty()) {
+        chart_->setTitle(tr("%1 — ожидание данных за выбранный интервал").arg(deviceName));
+        chartStatusLabel_->setText(tr("Точек на графике: 0 (%1) — SQLite пуст, ожидаются live-пакеты").arg(deviceName));
+        updateChartAxes(startTs, qMax(startTs + 60000, endTs), 0.0, 100.0, spec.yAxisTitle);
         return;
     }
 
@@ -356,10 +439,7 @@ void AnalyticsWidget::setDeviceHistory(const QString &deviceName,
     double minVal = std::numeric_limits<double>::max();
     double maxVal = std::numeric_limits<double>::lowest();
 
-    for (const auto &point : history) {
-        if (point.timestamp <= 0) {
-            continue;
-        }
+    for (const auto &point : merged) {
         const qreal x = static_cast<qreal>(point.timestamp);
         const double y1 = extractPrimaryMetric(devType, point);
         primarySeries->append(x, y1);
@@ -376,14 +456,6 @@ void AnalyticsWidget::setDeviceHistory(const QString &deviceName,
         }
     }
 
-    if (primarySeries->count() == 0) {
-        delete primarySeries;
-        delete secondarySeries;
-        chart_->setTitle(tr("%1 — нет корректных временных меток").arg(deviceName));
-        chartStatusLabel_->setText(tr("Точек на графике: 0 (%1)").arg(deviceName));
-        return;
-    }
-
     chart_->addSeries(primarySeries);
     if (secondarySeries != nullptr) {
         chart_->addSeries(secondarySeries);
@@ -391,7 +463,11 @@ void AnalyticsWidget::setDeviceHistory(const QString &deviceName,
 
     chart_->setTitle(tr("%1 (%2)").arg(deviceName, devType));
     chartStatusLabel_->setText(
-        tr("Точек на графике: %1 (%2)").arg(primarySeries->count()).arg(deviceName));
+        tr("Точек на графике: %1 (%2; SQLite: %3, Live WS: %4)")
+            .arg(primarySeries->count())
+            .arg(deviceName)
+            .arg(dbCount)
+            .arg(liveCount));
 
     updateChartAxes(minTs, maxTs, minVal, maxVal, spec.yAxisTitle);
 }
@@ -409,8 +485,8 @@ void AnalyticsWidget::updateChartAxes(qint64 minTsMs,
     xAxis->setTitleText(tr("Время"));
     xAxis->setTickCount(6);
     if (minTsMs == maxTsMs) {
-        xAxis->setRange(QDateTime::fromMSecsSinceEpoch(minTsMs - 60000),
-                        QDateTime::fromMSecsSinceEpoch(maxTsMs + 60000));
+        xAxis->setRange(QDateTime::fromMSecsSinceEpoch(minTsMs - 30000),
+                        QDateTime::fromMSecsSinceEpoch(maxTsMs + 30000));
     } else {
         xAxis->setRange(QDateTime::fromMSecsSinceEpoch(minTsMs),
                         QDateTime::fromMSecsSinceEpoch(maxTsMs));
@@ -433,12 +509,35 @@ void AnalyticsWidget::updateChartAxes(qint64 minTsMs,
     }
 }
 
-void AnalyticsWidget::setAllHistory(const QVector<smarthome::net::DeviceTelemetry> &history) {
-    eventsTable_->setRowCount(0);
-    eventsTable_->setRowCount(history.size());
+void AnalyticsWidget::renderEventsTable() {
+    QVector<smarthome::net::DeviceTelemetry> combined;
+    QSet<QString> seenKeys;
 
-    for (int row = 0; row < history.size(); ++row) {
-        const auto &item = history.at(row);
+    auto appendUnique = [&](const QVector<smarthome::net::DeviceTelemetry> &source) {
+        for (const auto &item : source) {
+            const QString key = QStringLiteral("%1:%2").arg(item.deviceName).arg(item.timestamp);
+            if (!seenKeys.contains(key)) {
+                seenKeys.insert(key);
+                combined.append(item);
+            }
+        }
+    };
+
+    appendUnique(liveEventsFeed_);
+    appendUnique(dbAllHistory_);
+
+    std::sort(combined.begin(), combined.end(), [](const auto &a, const auto &b) {
+        return a.timestamp > b.timestamp;
+    });
+    if (combined.size() > kHistoryTableLimit) {
+        combined.resize(kHistoryTableLimit);
+    }
+
+    eventsTable_->setRowCount(0);
+    eventsTable_->setRowCount(combined.size());
+
+    for (int row = 0; row < combined.size(); ++row) {
+        const auto &item = combined.at(row);
         eventsTable_->setItem(row, 0, new QTableWidgetItem(formatTimestamp(item)));
         eventsTable_->setItem(row, 1, new QTableWidgetItem(item.deviceName));
         eventsTable_->setItem(row, 2, new QTableWidgetItem(item.deviceType));

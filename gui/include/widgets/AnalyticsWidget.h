@@ -3,6 +3,7 @@
 
 #include "net/DtoModels.h"
 
+#include <QHash>
 #include <QStringList>
 #include <QVector>
 #include <QWidget>
@@ -44,6 +45,7 @@ public slots:
     void setDeviceHistory(const QString &deviceName,
                           const QVector<smarthome::net::DeviceTelemetry> &history);
     void setAllHistory(const QVector<smarthome::net::DeviceTelemetry> &history);
+    void appendLiveTelemetry(const smarthome::net::DeviceTelemetry &telemetry);
     void requestRefresh();
 
 signals:
@@ -57,6 +59,8 @@ private:
     void setupFilterBar(QVBoxLayout *rootLayout);
     void setupChartAndTable(QVBoxLayout *rootLayout);
     void applyPresetRange(int presetMinutes);
+    void renderDeviceChart();
+    void renderEventsTable();
     void updateChartAxes(qint64 minTsMs, qint64 maxTsMs, double minVal, double maxVal, const QString &yTitle);
 
     static QString inferDeviceType(const QString &deviceName,
@@ -73,6 +77,12 @@ private:
     QChart *chart_;
     QChartView *chartView_;
     QTableWidget *eventsTable_;
+
+    QString currentDbDeviceName_;
+    QVector<smarthome::net::DeviceTelemetry> dbDeviceHistory_;
+    QVector<smarthome::net::DeviceTelemetry> dbAllHistory_;
+    QHash<QString, QVector<smarthome::net::DeviceTelemetry>> liveHistoryByDevice_;
+    QVector<smarthome::net::DeviceTelemetry> liveEventsFeed_;
 
     bool updatingRange_ = false;
 };

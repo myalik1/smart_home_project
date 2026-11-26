@@ -149,6 +149,8 @@ void MainWindow::setupConnections() {
 
     connect(wsClient_, &smarthome::net::WsClient::telemetryReceived,
             dashboardWidget_, &smarthome::ui::DashboardWidget::updateTelemetry);
+    connect(wsClient_, &smarthome::net::WsClient::telemetryReceived,
+            analyticsWidget_, &smarthome::ui::AnalyticsWidget::appendLiveTelemetry);
     connect(wsClient_, &smarthome::net::WsClient::connected,
             this, &MainWindow::onWsConnected);
     connect(wsClient_, &smarthome::net::WsClient::disconnected,
