@@ -2,8 +2,14 @@
 #include "widgets/DashboardWidget.h"
 #include "widgets/DeviceCardWidget.h"
 
+#include <QComboBox>
+#include <QDoubleSpinBox>
 #include <QHash>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QPushButton>
 #include <QSignalSpy>
+#include <QSlider>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTest>
@@ -20,7 +26,10 @@ namespace {
 class TestGatewayServer : public QObject {
     Q_OBJECT
 public:
-    using HttpHandler = std::function<QByteArray(const QByteArray &target, int &statusCode)>;
+    using HttpHandler = std::function<QByteArray(const QByteArray &method,
+                                                 const QByteArray &target,
+                                                 const QByteArray &body,
+                                                 int &statusCode)>;
 
     explicit TestGatewayServer(HttpHandler handler, QObject *parent = nullptr)
         : QObject(parent)
@@ -57,15 +66,30 @@ private slots:
                 if (headerEnd < 0) {
                     return;
                 }
-                const QList<QByteArray> requestLine = buf.left(headerEnd).split('\n').first().trimmed().split(' ');
+                const QByteArray headerBlock = buf.left(headerEnd);
+                const QList<QByteArray> lines = headerBlock.split('\n');
+                const QList<QByteArray> requestLine = lines.first().trimmed().split(' ');
                 if (requestLine.size() < 2) {
                     return;
                 }
+                int contentLength = 0;
+                for (int i = 1; i < lines.size(); ++i) {
+                    const QByteArray line = lines[i].trimmed();
+                    if (line.toLower().startsWith("content-length:")) {
+                        contentLength = line.mid(15).trimmed().toInt();
+                    }
+                }
+                if (buf.size() < headerEnd + 4 + contentLength) {
+                    return;
+                }
+
+                const QByteArray method = requestLine[0];
                 const QByteArray target = requestLine[1];
+                const QByteArray reqBody = buf.mid(headerEnd + 4, contentLength);
                 buffers_.remove(socket);
 
                 int code = 200;
-                const QByteArray body = handler_(target, code);
+                const QByteArray body = handler_(method, target, reqBody, code);
                 QByteArray raw;
                 raw += "HTTP/1.1 " + QByteArray::number(code) + (code == 200 ? " OK\r\n" : " ERROR\r\n");
                 raw += "Content-Type: application/json\r\n";
@@ -208,7 +232,10 @@ private slots:
         bool mqttUp = true;
         bool failHealth = false;
 
-        TestGatewayServer server([&](const QByteArray &target, int &statusCode) -> QByteArray {
+        TestGatewayServer server([&](const QByteArray &,
+                                     const QByteArray &target,
+                                     const QByteArray &,
+                                     int &statusCode) -> QByteArray {
             if (target == "/api/v1/devices") {
                 statusCode = 200;
                 return R"([
@@ -256,6 +283,162 @@ private slots:
 
         failHealth = true;
         QTRY_VERIFY_WITH_TIMEOUT(window.gatewayStatusText().contains(QStringLiteral("Offline")), 2000);
+    }
+
+    void testInteractiveDeviceControlsAndAntiSpam() {
+        qRegisterMetaType<CommandRequest>("smarthome::net::CommandRequest");
+
+        DashboardWidget dashboard;
+        DeviceTelemetry lamp;
+        lamp.deviceName = QStringLiteral("Lamp1");
+        lamp.deviceType = QStringLiteral("Lamp");
+        lamp.brightness = 20;
+
+        DeviceTelemetry rad;
+        rad.deviceName = QStringLiteral("Rad1");
+        rad.deviceType = QStringLiteral("Radiator");
+        rad.currentValveLevel = 10;
+
+        DeviceTelemetry therm;
+        therm.deviceName = QStringLiteral("Therm1");
+        therm.deviceType = QStringLiteral("Thermostat");
+        therm.targetTemperature = 21.0;
+        therm.mode = QStringLiteral("OFF");
+
+        DeviceTelemetry plug;
+        plug.deviceName = QStringLiteral("Plug1");
+        plug.deviceType = QStringLiteral("Plug");
+
+        DeviceTelemetry hygro;
+        hygro.deviceName = QStringLiteral("Hygro1");
+        hygro.deviceType = QStringLiteral("Hygrometer");
+
+        dashboard.setDevices({
+            makeDeviceStatus(QStringLiteral("Lamp1"), QStringLiteral("Lamp"), true, lamp),
+            makeDeviceStatus(QStringLiteral("Plug1"), QStringLiteral("Plug"), true, plug),
+            makeDeviceStatus(QStringLiteral("Rad1"), QStringLiteral("Radiator"), true, rad),
+            makeDeviceStatus(QStringLiteral("Therm1"), QStringLiteral("Thermostat"), true, therm),
+            makeDeviceStatus(QStringLiteral("Hygro1"), QStringLiteral("Hygrometer"), true, hygro),
+        });
+
+        auto *lampCard = dashboard.cardForDevice(QStringLiteral("Lamp1"));
+        auto *plugCard = dashboard.cardForDevice(QStringLiteral("Plug1"));
+        auto *radCard = dashboard.cardForDevice(QStringLiteral("Rad1"));
+        auto *thermCard = dashboard.cardForDevice(QStringLiteral("Therm1"));
+        auto *hygroCard = dashboard.cardForDevice(QStringLiteral("Hygro1"));
+
+        QVERIFY(lampCard->onButton() != nullptr && lampCard->offButton() != nullptr);
+        QVERIFY(plugCard->onButton() != nullptr && plugCard->offButton() != nullptr);
+        QVERIFY(radCard->onButton() != nullptr && radCard->offButton() != nullptr);
+        QVERIFY(thermCard->onButton() != nullptr && thermCard->offButton() != nullptr);
+        QVERIFY(hygroCard->onButton() == nullptr && hygroCard->offButton() == nullptr);
+
+        QSignalSpy cmdSpy(&dashboard, &DashboardWidget::commandRequested);
+
+        // Power buttons
+        lampCard->onButton()->click();
+        plugCard->offButton()->click();
+        QCOMPARE(cmdSpy.count(), 2);
+        QCOMPARE(cmdSpy.at(0).at(0).toString(), QStringLiteral("Lamp1"));
+        QCOMPARE(cmdSpy.at(0).at(1).value<CommandRequest>().command, QStringLiteral("ON"));
+        QCOMPARE(cmdSpy.at(1).at(0).toString(), QStringLiteral("Plug1"));
+        QCOMPARE(cmdSpy.at(1).at(1).value<CommandRequest>().command, QStringLiteral("OFF"));
+        cmdSpy.clear();
+
+        // Slider drag anti-spam: dragging emits 0 commands until sliderReleased()
+        lampCard->setDebounceIntervalMs(50);
+        lampCard->levelSlider()->setSliderDown(true);
+        lampCard->levelSlider()->setValue(35);
+        lampCard->levelSlider()->setValue(55);
+        lampCard->levelSlider()->setValue(75);
+        QTest::qWait(80);
+        QCOMPARE(cmdSpy.count(), 0);
+
+        // QAbstractSlider::setSliderDown(false) emits sliderReleased() automatically
+        lampCard->levelSlider()->setSliderDown(false);
+        QCOMPARE(cmdSpy.count(), 1);
+        QCOMPARE(cmdSpy.first().at(0).toString(), QStringLiteral("Lamp1"));
+        QCOMPARE(cmdSpy.first().at(1).value<CommandRequest>().command, QStringLiteral("SET_BRIGHTNESS"));
+        QCOMPARE(*cmdSpy.first().at(1).value<CommandRequest>().value, 75.0);
+        cmdSpy.clear();
+
+        // Slider click/step debounce: rapid updates coalesce into 1 SET_VALVE_LEVEL
+        radCard->setDebounceIntervalMs(50);
+        radCard->levelSlider()->setValue(30);
+        radCard->levelSlider()->setValue(60);
+        radCard->levelSlider()->setValue(90);
+        QTRY_COMPARE_WITH_TIMEOUT(cmdSpy.count(), 1, 500);
+        QCOMPARE(cmdSpy.first().at(0).toString(), QStringLiteral("Rad1"));
+        QCOMPARE(cmdSpy.first().at(1).value<CommandRequest>().command, QStringLiteral("SET_VALVE_LEVEL"));
+        QCOMPARE(*cmdSpy.first().at(1).value<CommandRequest>().value, 90.0);
+        cmdSpy.clear();
+
+        // Thermostat target temp spinbox (debounced SET_TEMPERATURE) and mode combobox (SET_MODE)
+        thermCard->setDebounceIntervalMs(50);
+        thermCard->targetTempSpinBox()->setValue(23.5);
+        thermCard->targetTempSpinBox()->setValue(24.5);
+        QTRY_COMPARE_WITH_TIMEOUT(cmdSpy.count(), 1, 500);
+        QCOMPARE(cmdSpy.first().at(0).toString(), QStringLiteral("Therm1"));
+        QCOMPARE(cmdSpy.first().at(1).value<CommandRequest>().command, QStringLiteral("SET_TEMPERATURE"));
+        QCOMPARE(*cmdSpy.first().at(1).value<CommandRequest>().value, 24.5);
+        cmdSpy.clear();
+
+        thermCard->modeComboBox()->setCurrentText(QStringLiteral("HEAT"));
+        QCOMPARE(cmdSpy.count(), 1);
+        QCOMPARE(cmdSpy.first().at(0).toString(), QStringLiteral("Therm1"));
+        QCOMPARE(cmdSpy.first().at(1).value<CommandRequest>().command, QStringLiteral("SET_MODE"));
+        QCOMPARE(*cmdSpy.first().at(1).value<CommandRequest>().mode, QStringLiteral("HEAT"));
+    }
+
+    void testMainWindowSendsCommandsAndHandles503() {
+        bool brokerAvailable = true;
+        QByteArray lastCommandBody;
+
+        TestGatewayServer server([&](const QByteArray &method,
+                                     const QByteArray &target,
+                                     const QByteArray &body,
+                                     int &statusCode) -> QByteArray {
+            if (target == "/api/v1/devices") {
+                statusCode = 200;
+                return R"([{"deviceName":"Lamp1","deviceType":"Lamp","topic":"home/lamp1","isOnline":true,"lastSeenMs":1762605000000,"telemetry":{"deviceName":"Lamp1","deviceType":"Lamp","isOn":false,"brightness":50}}])";
+            }
+            if (target == "/api/v1/health") {
+                statusCode = 200;
+                return brokerAvailable
+                    ? R"({"status":"ok","version":"1.0.0","mqtt_connected":true})"
+                    : R"({"status":"ok","version":"1.0.0","mqtt_connected":false})";
+            }
+            if (method == "POST" && target == "/api/v1/devices/Lamp1/command") {
+                lastCommandBody = body;
+                if (!brokerAvailable) {
+                    statusCode = 503;
+                    return R"({"detail":"MQTT broker is currently unavailable. Command cannot be delivered."})";
+                }
+                statusCode = 200;
+                return R"({"status":"sent","deviceName":"Lamp1","topic":"home/lamp1/set","payload":{"command":"ON"}})";
+            }
+            statusCode = 404;
+            return R"({"detail":"Not found"})";
+        });
+
+        MainWindow window(server.restUrl(), server.wsUrl(), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(window.dashboardWidget()->deviceCount(), 1, 2000);
+
+        auto *lampCard = window.dashboardWidget()->cardForDevice(QStringLiteral("Lamp1"));
+        QVERIFY(lampCard != nullptr);
+        lampCard->onButton()->click();
+
+        QTRY_VERIFY_WITH_TIMEOUT(!lastCommandBody.isEmpty(), 2000);
+        QCOMPARE(QJsonDocument::fromJson(lastCommandBody).object().value(QStringLiteral("command")).toString(),
+                 QStringLiteral("ON"));
+        QVERIFY(!window.isAlertBannerVisible());
+
+        // Now simulate 503 Service Unavailable from MQTT broker outage
+        brokerAvailable = false;
+        lampCard->offButton()->click();
+
+        QTRY_VERIFY_WITH_TIMEOUT(window.isAlertBannerVisible(), 2000);
+        QVERIFY(window.alertBannerText().contains(QStringLiteral("Нет связи с MQTT-брокером")));
     }
 };
 
