@@ -45,6 +45,7 @@ public:
     smarthome::ui::DashboardWidget *dashboardWidget() const { return dashboardWidget_; }
     smarthome::ui::AnalyticsWidget *analyticsWidget() const { return analyticsWidget_; }
     smarthome::ui::RulesAndSettingsWidget *rulesAndSettingsWidget() const { return rulesSettingsWidget_; }
+    smarthome::net::WsClient *wsClient() const { return wsClient_; }
     QString gatewayStatusText() const;
     QString mqttStatusText() const;
     QString wsStatusText() const;
@@ -91,6 +92,7 @@ private:
     QLabel *wsStatusLabel_;
 
     int healthPollIntervalMs_ = 5000;
+    bool gatewayOnline_ = false;
 };
 
 #endif // SMARTHOME_GUI_MAINWINDOW_H

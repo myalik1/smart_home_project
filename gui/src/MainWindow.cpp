@@ -231,6 +231,7 @@ void MainWindow::onGatewayUrlApplyRequested(const QUrl &gatewayOrigin) {
     wsUrl.setPath(QStringLiteral("/ws/telemetry"));
 
     hideAlertBanner();
+    gatewayOnline_ = false;
     apiClient_->setBaseUrl(restUrl);
     wsClient_->connectToGateway(wsUrl);
 
@@ -243,6 +244,9 @@ void MainWindow::onGatewayUrlApplyRequested(const QUrl &gatewayOrigin) {
 }
 
 void MainWindow::onHealthReceived(const smarthome::net::HealthStatus &health) {
+    const bool recovered = !gatewayOnline_;
+    gatewayOnline_ = true;
+
     const QString gwText = health.version.isEmpty()
         ? tr("Шлюз: Online")
         : tr("Шлюз: Online (v%1)").arg(health.version);
@@ -256,6 +260,12 @@ void MainWindow::onHealthReceived(const smarthome::net::HealthStatus &health) {
     }
 
     rulesSettingsWidget_->setHealthStatus(health);
+
+    if (recovered) {
+        apiClient_->getDevices();
+        apiClient_->getRules();
+        analyticsWidget_->requestRefresh();
+    }
 }
 
 void MainWindow::onCommandSent(const smarthome::net::CommandResult &result) {
@@ -279,6 +289,7 @@ void MainWindow::onApiRequestFailed(const QString &endpoint, int httpStatus, con
     }
 
     if (endpoint == QStringLiteral("/health") || httpStatus == 0) {
+        gatewayOnline_ = false;
         updateBadgeState(gatewayStatusLabel_, tr("Шлюз: Offline"), QStringLiteral("error"));
         updateBadgeState(mqttStatusLabel_, tr("MQTT: Неизвестно"), QStringLiteral("warn"));
         rulesSettingsWidget_->setGatewayOffline();
@@ -288,6 +299,9 @@ void MainWindow::onApiRequestFailed(const QString &endpoint, int httpStatus, con
 
 void MainWindow::onWsConnected() {
     updateBadgeState(wsStatusLabel_, tr("WS: Подключён"), QStringLiteral("ok"));
+    if (dashboardWidget_->deviceCount() == 0) {
+        apiClient_->getDevices();
+    }
 }
 
 void MainWindow::onWsDisconnected() {
