@@ -73,3 +73,44 @@ ConsoleUI — консольный интерфейс
 - **SOLID** — `SmartHome` не делает работу сам, а координирует устройства
 
 ## Структура проекта
+
+- `include/`, `src/`, `apps/` — C++ ядро устройств, эмуляторы и микро-приложения MQTT
+- `gateway/` — FastAPI-шлюз (REST API + WebSocket + чтение SQLite и `data/rules.json`)
+- `gui/` — десктопный клиент на Qt 6 (`SmartHomeGui`)
+- `tests/` — модульные тесты ядра (GoogleTest) и GUI (`QtTest`)
+
+## Сборка и запуск Qt 6 GUI-клиента (`SmartHomeGui`)
+
+### Требования
+
+- Qt 6 (модули `Widgets`, `Network`, `WebSockets`, `Charts`, `Test`)
+- CMake ≥ 3.16, Ninja / MinGW (или совместимый C++17 компилятор)
+- Запущенный брокер Mosquitto (`localhost:1883`) и FastAPI-шлюз (`http://127.0.0.1:8001`)
+
+### Сборка только GUI (Windows, Qt MinGW)
+
+```powershell
+cmake -S . -B build-gui -G Ninja `
+  -DCMAKE_PREFIX_PATH="E:/Qt/6.12.1/mingw_64" `
+  -DBUILD_BACKEND=OFF -DBUILD_GUI=ON -DBUILD_GUI_TESTS=ON
+cmake --build build-gui
+```
+
+### Запуск тестов GUI
+
+```powershell
+ctest --test-dir build-gui --output-on-failure
+```
+
+### Запуск стенда целиком (Mosquitto + Gateway + Эмуляторы + Qt GUI)
+
+1. Убедитесь, что служба `mosquitto` запущена (`localhost:1883`).
+2. Запустите FastAPI-шлюз (в виртуальном окружении с зависимостями из `gateway/requirements.txt`):
+
+   ```powershell
+   uvicorn gateway.main:app --host 127.0.0.1 --port 8001
+   ```
+
+3. Запустите нужные C++ микро-приложения устройств из `build/` (`app_lamp.exe`, `app_plug.exe`, `app_radiator.exe`, `app_thermostat.exe`, `app_hygrometer.exe`).
+4. При необходимости разверните Qt DLL рядом с `.exe` (`windeployqt build-gui\gui\SmartHomeGui.exe`) и запустите `build-gui\gui\SmartHomeGui.exe`.
+

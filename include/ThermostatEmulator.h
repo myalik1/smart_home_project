@@ -18,6 +18,8 @@ public:
 private:
     SmartThermostat* thermostat;
     float roomBaseTemperature;
+    float exactTemperature;
+    float lastPushedRoundedTemp;
 
     std::atomic<bool> isRunning;
     std::thread emuThread;

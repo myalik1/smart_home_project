@@ -52,7 +52,8 @@ void SmartThermostat::syncRadiatorValve() {
             if (diff >= 3.0f) {
                 desiredValve = 100;
             } else {
-                desiredValve = std::clamp(static_cast<int>((diff / 3.0f) * 100.0f), 15, 100);
+                // Keep at least 30% valve while heating so heat gain (0.15) exceeds heat loss (0.10)
+                desiredValve = std::clamp(static_cast<int>((diff / 3.0f) * 100.0f), 30, 100);
             }
         } else {
             desiredValve = 0;
@@ -143,7 +144,8 @@ void SmartThermostat::updateCurrentTemperature(float temp) {
     {
         std::lock_guard<std::mutex> lock(stateMutex);
         float rounded = std::round(temp * 10.0f) / 10.0f;
-        if (std::abs(currentTemperature - rounded) >= 0.1f) {
+        // Use 0.05f threshold because float32 differences like 20.8f - 20.7f evaluate slightly below 0.1f.
+        if (std::abs(currentTemperature - rounded) >= 0.05f) {
             currentTemperature = rounded;
             changed = true;
         }
