@@ -226,6 +226,12 @@ private slots:
             if (req.method == "DELETE" && req.target == "/api/v1/rules/items/r1") {
                 return {200, "OK", R"({"rules":[]})"};
             }
+            if (req.method == "PATCH" && req.target == "/api/v1/rules/items/lamo%20on%20night") {
+                return {200, "OK", R"({"id":"lamo on night","type":"point","enabled":false,"time":"23:30:00"})"};
+            }
+            if (req.method == "DELETE" && req.target == "/api/v1/rules/items/lamo%20on%20night") {
+                return {200, "OK", R"({"rules":[]})"};
+            }
             return {404, "Not Found", R"({"detail":"Unhandled mock route"})"};
         });
 
@@ -284,6 +290,15 @@ private slots:
         QVERIFY(delSpy.wait(2000));
         QCOMPARE(delSpy.first().first().toString(), QStringLiteral("r1"));
         QCOMPARE(delSpy.first().at(1).value<QVector<RuleItem>>().size(), 0);
+
+        // Verify rule IDs with spaces are single-encoded (%20, not %2520)
+        client.toggleRule(QStringLiteral("lamo on night"), false);
+        QVERIFY(toggleSpy.wait(2000));
+        QCOMPARE(toggleSpy.last().first().value<RuleItem>().id, QStringLiteral("lamo on night"));
+
+        client.deleteRule(QStringLiteral("lamo on night"));
+        QVERIFY(delSpy.wait(2000));
+        QCOMPARE(delSpy.last().first().toString(), QStringLiteral("lamo on night"));
     }
 
     void testRestClientHttpErrorParsing() {

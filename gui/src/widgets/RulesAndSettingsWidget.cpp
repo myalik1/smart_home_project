@@ -219,6 +219,8 @@ void RulesAndSettingsWidget::onRuleDeleted(const QString & /*ruleId*/,
 void RulesAndSettingsWidget::onApiError(const QString &endpoint, int httpStatus, const QString &errorMessage) {
     if (activeDialog_ && endpoint == QStringLiteral("/rules/items")) {
         activeDialog_->handleSubmitError(httpStatus, errorMessage);
+    } else if (endpoint.startsWith(QStringLiteral("/rules/items/"))) {
+        renderRulesTable();
     }
 }
 

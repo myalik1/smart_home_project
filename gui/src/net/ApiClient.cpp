@@ -27,7 +27,7 @@ void ApiClient::setTransferTimeoutMs(int timeoutMs) {
 
 QUrl ApiClient::buildUrl(const QString &relativePath, const QUrlQuery &query) const {
     QUrl url = baseUrl_;
-    QString basePath = url.path();
+    QString basePath = url.path(QUrl::FullyEncoded);
     while (basePath.endsWith(QLatin1Char('/'))) {
         basePath.chop(1);
     }
@@ -35,7 +35,8 @@ QUrl ApiClient::buildUrl(const QString &relativePath, const QUrlQuery &query) co
     while (cleanRelative.startsWith(QLatin1Char('/'))) {
         cleanRelative.remove(0, 1);
     }
-    url.setPath(basePath + QLatin1Char('/') + cleanRelative);
+    // Callers pass percent-encoded path segments (e.g., ruleId/deviceName); StrictMode avoids double-encoding %20.
+    url.setPath(basePath + QLatin1Char('/') + cleanRelative, QUrl::StrictMode);
     if (!query.isEmpty()) {
         url.setQuery(query);
     }
